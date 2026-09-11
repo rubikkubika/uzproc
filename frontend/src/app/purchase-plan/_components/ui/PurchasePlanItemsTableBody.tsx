@@ -30,6 +30,8 @@ interface PurchasePlanItemsTableBodyProps {
   setAnimatingDates?: (updater: (prev: Record<number, boolean>) => Record<number, boolean>) => void;
   setEditingDate?: (date: { itemId: number; field: 'requestDate' } | null) => void;
   canEdit?: boolean;
+  /** Текущий пользователь — закупщик или администратор (может ставить «Проверено закупщиком») */
+  canCheckPurchaser?: boolean;
   isViewingArchiveVersion?: boolean;
   holidayDateKeys?: Set<string>;
 }
@@ -59,6 +61,7 @@ export default function PurchasePlanItemsTableBody({
   setAnimatingDates,
   setEditingDate,
   canEdit,
+  canCheckPurchaser,
   isViewingArchiveVersion,
   holidayDateKeys,
 }: PurchasePlanItemsTableBodyProps) {
@@ -83,6 +86,7 @@ export default function PurchasePlanItemsTableBody({
         <PurchasePlanItemsTableRow
           key={`${item.id}-${index}`}
           item={item}
+          isFirstRow={index === 0}
           backUrl={backUrl}
           visibleColumns={visibleColumnsSet}
           columnOrder={columnOrder}
@@ -109,6 +113,8 @@ export default function PurchasePlanItemsTableBody({
           onBudgetAmountUpdate={editingHandlers.onBudgetAmountUpdate}
           onComplexityUpdate={editingHandlers.onComplexityUpdate}
           onExcludeFromPlanningToggle={editingHandlers.onExcludeFromPlanningToggle}
+          onPurchaserCheckedToggle={editingHandlers.onPurchaserCheckedToggle}
+          canCheckPurchaser={canCheckPurchaser}
           setEditingBudgetAmount={editingHandlers.setEditingBudgetAmount}
           setEditingComplexity={editingHandlers.setEditingComplexity}
           onPurchaserUpdate={editingHandlers.onPurchaserUpdate}

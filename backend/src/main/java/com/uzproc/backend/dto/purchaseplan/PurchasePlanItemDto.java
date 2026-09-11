@@ -41,6 +41,11 @@ public class PurchasePlanItemDto {
     private String currentContractName; // наименование действующего договора («Текущий договор»)
     private Boolean isDraft; // позиция драфта плана закупок
     private Long sourceContractId; // договор-источник (для позиций драфта)
+    private Boolean purchaserChecked; // «Проверено закупщиком» (драфт)
+    private LocalDateTime purchaserCheckedAt; // когда последний раз ставили/снимали отметку
+    private String purchaserCheckedBy; // кто последний раз ставил/снимал отметку (фамилия и имя)
+    private LocalDateTime excludedFromPlanningAt; // когда последний раз нажимали «глазик»
+    private String excludedFromPlanningBy; // кто последний раз нажимал «глазик» (фамилия и имя)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -327,6 +332,46 @@ public class PurchasePlanItemDto {
 
     public void setSourceContractId(Long sourceContractId) {
         this.sourceContractId = sourceContractId;
+    }
+
+    public Boolean getPurchaserChecked() {
+        return purchaserChecked;
+    }
+
+    public void setPurchaserChecked(Boolean purchaserChecked) {
+        this.purchaserChecked = purchaserChecked;
+    }
+
+    public LocalDateTime getPurchaserCheckedAt() {
+        return purchaserCheckedAt;
+    }
+
+    public void setPurchaserCheckedAt(LocalDateTime purchaserCheckedAt) {
+        this.purchaserCheckedAt = purchaserCheckedAt;
+    }
+
+    public String getPurchaserCheckedBy() {
+        return purchaserCheckedBy;
+    }
+
+    public void setPurchaserCheckedBy(String purchaserCheckedBy) {
+        this.purchaserCheckedBy = purchaserCheckedBy;
+    }
+
+    public LocalDateTime getExcludedFromPlanningAt() {
+        return excludedFromPlanningAt;
+    }
+
+    public void setExcludedFromPlanningAt(LocalDateTime excludedFromPlanningAt) {
+        this.excludedFromPlanningAt = excludedFromPlanningAt;
+    }
+
+    public String getExcludedFromPlanningBy() {
+        return excludedFromPlanningBy;
+    }
+
+    public void setExcludedFromPlanningBy(String excludedFromPlanningBy) {
+        this.excludedFromPlanningBy = excludedFromPlanningBy;
     }
 }
 

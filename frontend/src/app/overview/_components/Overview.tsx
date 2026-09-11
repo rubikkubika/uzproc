@@ -37,6 +37,10 @@ import { KpiDashboard2 } from './kpi2/KpiDashboard2';
 import { ADMIN_LOGIN_ONLY_TABS } from './types/overview.types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { OVERVIEW_TOUR_STEPS } from './constants/overview-tour.constants';
 
 /**
  * Главный компонент страницы обзор
@@ -44,6 +48,7 @@ import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
  */
 export default function Overview() {
   const { activeTopTab, setActiveTopTab, activeDashboardCategory, setActiveDashboardCategory, activeTab, setActiveTab } = useOverview();
+  const tour = useTour(OVERVIEW_TOUR_STEPS);
   // KPI премии 2 видит только пользователь с логином admin
   const { userEmail, loading: authLoading } = useAuth();
   const isAdminLogin = userEmail === 'admin';
@@ -356,6 +361,7 @@ export default function Overview() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         hiddenTabs={hiddenTabs}
+        actions={<TourButton onClick={tour.start} />}
       />
       
       <div className="w-full flex-1 min-h-0 flex flex-col">
@@ -547,6 +553,7 @@ export default function Overview() {
           </div>
         )}
       </div>
+      <Tour tour={tour} title="Тур по разделу «Обзор»" />
     </div>
   );
 }

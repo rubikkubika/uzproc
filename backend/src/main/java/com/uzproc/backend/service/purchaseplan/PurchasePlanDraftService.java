@@ -8,14 +8,17 @@ import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.supplier.Supplier;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.service.user.CurrentUserService;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +36,14 @@ import java.util.stream.Collectors;
 /**
  * Генерация драфта плана закупок из действующих договоров.
  *
- * Отбираются договоры (без ДС, спецификаций и прочих форм документов) организации-заказчика
- * Uzum Market в статусе «Подписан», срок действия которых заканчивается начиная с октября года,
- * предшествующего году планирования, либо в течение самого года планирования.
+ * Отбираются договоры и связанные с заявкой на закупку доп. соглашения (без спецификаций и прочих форм
+ * документов) организации-заказчика Uzum Market в статусе «Подписан», срок действия которых заканчивается
+ * начиная с октября года, предшествующего году планирования, либо в течение самого года планирования.
  * Для года планирования 2027 это диапазон 01.10.2026 — 31.12.2027.
  * Осенние договоры включены потому, что перезакупка по ним приходится уже на год планирования.
+ * ДС нужны потому, что продлевают срок договора, а связь ДС с основным договором в данных отсутствует:
+ * без ДС договор, продлённый на год планирования, отсекается по своей исходной дате окончания.
+ * ДС, продлевающее уже отобранный договор (та же заявка и тот же поставщик), в драфт не попадает — иначе дубль.
  *
  * Аналитика позиции драфта заполняется из договора и (при наличии) из связанной заявки на закупку.
  * Договоры с признаком «Исключён из планирования» в драфт не попадают.
@@ -52,6 +58,9 @@ public class PurchasePlanDraftService {
 
     /** Форма документа, соответствующая договору (исключает ДС, спецификации, приложения и т.д.) */
     private static final String DOCUMENT_FORM_CONTRACT = "Договор";
+
+    /** Форма документа доп. соглашения: в драфт попадает, только если связано с заявкой на закупку */
+    private static final String DOCUMENT_FORM_ADDITIONAL_AGREEMENT = "Дополнительное соглашение";
 
     /**
      * ЦФО, исключаемые из драфта: коммерческие подразделения (Commerce 1Р, 3Р, SR, FMCG,
@@ -77,18 +86,24 @@ public class PurchasePlanDraftService {
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final ProcurementLeadTimeService procurementLeadTimeService;
     private final PurchasePlanItemService purchasePlanItemService;
+    private final PurchasePlanItemChangeService purchasePlanItemChangeService;
+    private final CurrentUserService currentUserService;
 
     public PurchasePlanDraftService(
             ContractRepository contractRepository,
             PurchasePlanItemRepository purchasePlanItemRepository,
             PurchaseRequestRepository purchaseRequestRepository,
             ProcurementLeadTimeService procurementLeadTimeService,
-            PurchasePlanItemService purchasePlanItemService) {
+            PurchasePlanItemService purchasePlanItemService,
+            PurchasePlanItemChangeService purchasePlanItemChangeService,
+            CurrentUserService currentUserService) {
         this.contractRepository = contractRepository;
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.procurementLeadTimeService = procurementLeadTimeService;
         this.purchasePlanItemService = purchasePlanItemService;
+        this.purchasePlanItemChangeService = purchasePlanItemChangeService;
+        this.currentUserService = currentUserService;
     }
 
     /**
@@ -105,7 +120,8 @@ public class PurchasePlanDraftService {
         LocalDateTime from = LocalDate.of(planYear - 1, DRAFT_WINDOW_START_MONTH, 1).atStartOfDay();
         LocalDateTime to = LocalDate.of(planYear + 1, 1, 1).atStartOfDay();
 
-        List<Contract> contracts = contractRepository.findAll(buildContractSpecification(from, to));
+        List<Contract> contracts = removeAmendmentsOfSelectedContracts(
+                contractRepository.findAll(buildContractSpecification(from, to)));
         logger.info("Draft generation for year {}: selected {} contracts (end date {} .. {})",
                 planYear, contracts.size(), from.toLocalDate(), to.toLocalDate().minusDays(1));
 
@@ -207,10 +223,48 @@ public class PurchasePlanDraftService {
                 contractRepository.save(contract);
             });
         }
+        // Кто и когда нажал «глазик»; сама смена статуса попадает в историю изменений с автором
+        item.setExcludedFromPlanningAt(LocalDateTime.now());
+        item.setExcludedFromPlanningBy(currentUserService.getCurrentUser().orElse(null));
         logger.info("Draft plan item {} {} planning (source contract {})",
                 itemId, excluded ? "excluded from" : "returned to", item.getSourceContractId());
         return purchasePlanItemService.updateStatus(itemId,
                 excluded ? PurchasePlanItemStatus.NOT_ACTUAL : PurchasePlanItemStatus.ACTUAL);
+    }
+
+    /**
+     * Галочка «Проверено закупщиком» у позиции драфта: ставят и снимают только закупщики и администраторы.
+     * Кто и когда нажал, хранится в позиции (последнее нажатие) и в истории изменений (все нажатия).
+     *
+     * @return обновлённая позиция или null, если позиция не найдена
+     * @throws AccessDeniedException если текущий пользователь не закупщик и не администратор
+     * @throws IllegalStateException если позиция не относится к драфту
+     */
+    @Transactional
+    public PurchasePlanItemDto setPurchaserChecked(Long itemId, boolean checked) {
+        PurchasePlanItem item = purchasePlanItemRepository.findById(itemId).orElse(null);
+        if (item == null) {
+            return null;
+        }
+        if (!Boolean.TRUE.equals(item.getIsDraft())) {
+            throw new IllegalStateException("Отметить «Проверено закупщиком» можно только позицию драфта плана закупок");
+        }
+        User user = currentUserService.getCurrentUser()
+                .filter(CurrentUserService::isPurchaserOrAdmin)
+                .orElseThrow(() -> new AccessDeniedException(
+                        "Отметить «Проверено закупщиком» могут только закупщики и администраторы"));
+
+        boolean wasChecked = Boolean.TRUE.equals(item.getPurchaserChecked());
+        if (wasChecked != checked) {
+            purchasePlanItemChangeService.logChange(item.getId(), item.getGuid(), "purchaserChecked",
+                    wasChecked ? "Да" : "Нет", checked ? "Да" : "Нет");
+            item.setPurchaserChecked(checked);
+            item.setPurchaserCheckedAt(LocalDateTime.now());
+            item.setPurchaserCheckedBy(user);
+            purchasePlanItemRepository.save(item);
+            logger.info("Draft plan item {} purchaser check {} by user {}", itemId, checked ? "set" : "removed", user.getId());
+        }
+        return purchasePlanItemService.findById(itemId);
     }
 
     /**
@@ -222,8 +276,14 @@ public class PurchasePlanDraftService {
             query.distinct(true);
 
             List<Predicate> predicates = new ArrayList<>();
-            // Только договоры: без ДС, спецификаций, приложений, счетов и прочих форм
-            predicates.add(cb.equal(root.get("documentForm"), DOCUMENT_FORM_CONTRACT));
+            // Договоры и связанные с заявкой ДС: без спецификаций, приложений, счетов и прочих форм
+            predicates.add(cb.or(
+                    cb.equal(root.get("documentForm"), DOCUMENT_FORM_CONTRACT),
+                    cb.and(
+                            cb.equal(root.get("documentForm"), DOCUMENT_FORM_ADDITIONAL_AGREEMENT),
+                            cb.isNotNull(root.get("purchaseRequestId"))
+                    )
+            ));
             // Только Uzum Market
             predicates.add(cb.equal(root.get("customerOrganization"), CustomerOrganization.UZUM_MARKET));
             // Только действующие (подписанные) договоры
@@ -244,6 +304,42 @@ public class PurchasePlanDraftService {
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    /**
+     * Убирает ДС, продлевающие уже отобранный договор: связи ДС с основным договором в данных нет,
+     * поэтому один и тот же договор распознаётся по совпадению заявки на закупку и поставщика.
+     * ДС по той же заявке с другим поставщиком (например, разделение объёма между поставщиками) остаётся.
+     */
+    private List<Contract> removeAmendmentsOfSelectedContracts(List<Contract> contracts) {
+        Set<String> contractKeys = new HashSet<>();
+        for (Contract contract : contracts) {
+            if (DOCUMENT_FORM_CONTRACT.equals(contract.getDocumentForm()) && contract.getPurchaseRequestId() != null) {
+                for (Supplier supplier : suppliersOf(contract)) {
+                    contractKeys.add(contract.getPurchaseRequestId() + ":" + supplier.getId());
+                }
+            }
+        }
+        List<Contract> result = new ArrayList<>();
+        int removed = 0;
+        for (Contract contract : contracts) {
+            boolean duplicatesContract = DOCUMENT_FORM_ADDITIONAL_AGREEMENT.equals(contract.getDocumentForm())
+                    && suppliersOf(contract).stream()
+                            .anyMatch(s -> contractKeys.contains(contract.getPurchaseRequestId() + ":" + s.getId()));
+            if (duplicatesContract) {
+                removed++;
+            } else {
+                result.add(contract);
+            }
+        }
+        if (removed > 0) {
+            logger.info("Draft generation: skipped {} additional agreements of already selected contracts", removed);
+        }
+        return result;
+    }
+
+    private static Set<Supplier> suppliersOf(Contract contract) {
+        return contract.getSuppliers() != null ? contract.getSuppliers() : Set.of();
     }
 
     /**
@@ -290,6 +386,12 @@ public class PurchasePlanDraftService {
         item.setCategory(null);
         item.setProduct(null);
         item.setIsStrategicProduct(null);
+        // Заполненная заново позиция закупщиком ещё не проверена; прошлые отметки остаются в истории изменений
+        item.setPurchaserChecked(Boolean.FALSE);
+        item.setPurchaserCheckedAt(null);
+        item.setPurchaserCheckedBy(null);
+        item.setExcludedFromPlanningAt(null);
+        item.setExcludedFromPlanningBy(null);
     }
 
     /**
@@ -378,10 +480,12 @@ public class PurchasePlanDraftService {
     }
 
     /**
-     * Комментарий-источник: номер договора и валюта (суммы в не-сумовых договорах не пересчитываются).
+     * Комментарий-источник: вид и номер документа и валюта (суммы в не-сумовых договорах не пересчитываются).
      */
     private String buildComment(Contract contract) {
-        StringBuilder sb = new StringBuilder("Сформировано из договора");
+        StringBuilder sb = new StringBuilder(DOCUMENT_FORM_ADDITIONAL_AGREEMENT.equals(contract.getDocumentForm())
+                ? "Сформировано из доп. соглашения"
+                : "Сформировано из договора");
         if (isNotBlank(contract.getInnerId())) {
             sb.append(" № ").append(contract.getInnerId().trim());
         }

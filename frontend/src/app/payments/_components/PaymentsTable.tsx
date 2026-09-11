@@ -6,6 +6,10 @@ import { usePaymentsTable } from './hooks/usePaymentsTable';
 import PaymentsTableTabs from './ui/PaymentsTableTabs';
 import { PAYMENT_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS, PAYMENT_TYPE_OPTIONS } from './types/payments.types';
 import { MONTH_OPTIONS } from './constants/payments.constants';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { PAYMENTS_TOUR_STEPS } from './constants/payments-tour.constants';
 
 export default function PaymentsTable() {
   const {
@@ -26,6 +30,8 @@ export default function PaymentsTable() {
     loadMoreRef,
     updatePaymentType,
   } = usePaymentsTable();
+
+  const tour = useTour(PAYMENTS_TOUR_STEPS);
 
   if (error) {
     return (
@@ -170,12 +176,14 @@ export default function PaymentsTable() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         tabCounts={tabCounts}
+        actions={<TourButton onClick={tour.start} />}
       />
 
       {/* Заголовок: Сбросить фильтры и счётчик — как на странице заявок */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            data-tour="reset-filters"
             onClick={handleResetFilters}
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
@@ -191,16 +199,16 @@ export default function PaymentsTable() {
             Колонки
           </button>
         </div>
-        <div className="text-xs text-gray-700 flex-shrink-0">
+        <div data-tour="records-counter" className="text-xs text-gray-700 flex-shrink-0">
           Показано {allItems.length} из {data?.totalElements ?? 0} записей
         </div>
       </div>
 
       <div className="flex-1 min-w-0 overflow-auto relative">
         <table className="w-full max-w-full border-collapse table-fixed">
-          <thead className="bg-gray-50 sticky top-0 z-10">
+          <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '8%' }}>
+                <th data-tour="col-mainId" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '8%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -240,7 +248,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '10%' }}>
+                <th data-tour="col-purchaseRequestNumber" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '10%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       {renderTextFilter('purchaseRequestNumber')}
@@ -250,7 +258,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '18%' }}>
+                <th data-tour="col-contractTitle" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '18%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       {renderTextFilter('contractTitle')}
@@ -260,7 +268,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '16%' }}>
+                <th data-tour="col-counterparty" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '16%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       {renderTextFilter('counterparty', 'Название / ИНН')}
@@ -277,7 +285,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '11%' }}>
+                <th data-tour="col-paymentStatus" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '11%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <select
@@ -298,7 +306,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '11%' }}>
+                <th data-tour="col-requestStatus" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '11%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <select
@@ -319,7 +327,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '13%' }}>
+                <th data-tour="col-plannedExpenseDate" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '13%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       {renderDateFilter(filters.plannedExpenseMonth, filters.setPlannedExpenseMonth, filters.plannedExpenseYear, filters.setPlannedExpenseYear)}
@@ -336,7 +344,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '13%' }}>
+                <th data-tour="col-paymentDate" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '13%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       {renderDateFilter(filters.paymentMonth, filters.setPaymentMonth, filters.paymentYear, filters.setPaymentYear)}
@@ -346,7 +354,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '12%' }}>
+                <th data-tour="col-amount" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div className="relative flex-1" style={{ minWidth: 0 }}>
@@ -417,7 +425,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '9%' }}>
+                <th data-tour="col-paymentType" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '9%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <select
@@ -438,7 +446,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '18%' }}>
+                <th data-tour="col-cfo" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '18%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div ref={filters.cfoFilterContainerRef} className="relative w-full h-full">
@@ -512,7 +520,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap align-top" style={{ width: '14%', minWidth: '100px' }}>
+                <th data-tour="col-executor" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap align-top" style={{ width: '14%', minWidth: '100px' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       {renderTextFilter('executor')}
@@ -522,7 +530,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '22%' }}>
+                <th data-tour="col-comment" className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '22%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -677,6 +685,8 @@ export default function PaymentsTable() {
           )}
           <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
         </div>
+
+      <Tour tour={tour} title="Тур по разделу «Оплаты»" />
     </div>
   );
 }

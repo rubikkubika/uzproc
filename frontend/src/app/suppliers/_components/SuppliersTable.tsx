@@ -4,6 +4,10 @@ import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useSuppliersTable } from './hooks/useSuppliersTable';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import type { SortField } from './types/suppliers.types';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { SUPPLIERS_TOUR_STEPS } from './constants/suppliers-tour.constants';
 
 function FilterInput({
   field,
@@ -67,7 +71,7 @@ function SortableHeader({
   if (!field) return null;
   const localValue = filters.localFilters[field] ?? '';
   return (
-    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '18%' }}>
+    <th data-tour={`col-${field}`} className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '18%' }}>
       <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
         <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
           <FilterInput
@@ -128,6 +132,8 @@ export default function SuppliersTable() {
 
   const totalElements = data?.totalElements ?? 0;
 
+  const tour = useTour(SUPPLIERS_TOUR_STEPS);
+
   useInfiniteScroll(loadMoreRef, {
     enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
     onLoadMore: () => {
@@ -151,20 +157,24 @@ export default function SuppliersTable() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            data-tour="reset-filters"
             onClick={handleResetFilters}
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
             Сбросить фильтры
           </button>
         </div>
-        <div className="text-xs text-gray-700 flex-shrink-0">
-          Показано {allItems.length} из {totalElements} записей
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div data-tour="records-counter" className="text-xs text-gray-700 flex-shrink-0">
+            Показано {allItems.length} из {totalElements} записей
+          </div>
+          <TourButton onClick={tour.start} />
         </div>
       </div>
 
       <div className="flex-1 min-w-0 overflow-auto relative custom-scrollbar">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-50 sticky top-0 z-10">
+          <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <SortableHeader field="type" label="Вид" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} filters={filters} />
               <SortableHeader field="kpp" label="КПП" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} filters={filters} />
@@ -173,7 +183,7 @@ export default function SuppliersTable() {
               <SortableHeader field="name" label="Наименование" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} filters={filters} />
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody data-tour="table-body" className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
@@ -216,6 +226,8 @@ export default function SuppliersTable() {
         )}
         <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
+
+      <Tour tour={tour} title="Тур по разделу «Поставщики»" />
     </div>
   );
 }

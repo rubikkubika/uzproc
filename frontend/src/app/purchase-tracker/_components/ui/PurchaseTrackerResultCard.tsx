@@ -27,6 +27,7 @@ export default function PurchaseTrackerResultCard({
   return (
     <button
       type="button"
+      data-tour="result-card"
       onClick={() => onSelect(result.id)}
       className={`flex cursor-pointer flex-col gap-[9px] rounded-2xl bg-white p-4 text-left ${
         variant === 'grid' ? 'w-[340px]' : 'w-full'

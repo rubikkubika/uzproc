@@ -16,13 +16,14 @@ export default function PurchaseTrackerDetails({ detail }: PurchaseTrackerDetail
       style={{ border: '1px solid #E7E9F0', boxShadow: '0 1px 3px rgba(16,24,40,.05)' }}
     >
       {/* Шапка */}
-      <div className="flex flex-col gap-1.5 px-6 pt-5 pb-4" style={{ borderBottom: '1px solid #F0F2F7' }}>
+      <div data-tour="detail-header" className="flex flex-col gap-1.5 px-6 pt-5 pb-4" style={{ borderBottom: '1px solid #F0F2F7' }}>
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="rounded-md bg-[#F2F4F7] px-[9px] py-1 text-[12.5px] font-bold text-[#475467]">
             № {detail.id}
           </span>
           <KindBadge kind={detail.kind} />
           <span
+            data-tour="detail-status"
             className="rounded-full px-3 py-[5px] text-[12.5px] font-semibold"
             style={{ background: detail.pillBg, color: detail.pillFg }}
           >

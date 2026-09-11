@@ -34,6 +34,9 @@ import PurchasePlanItemsVersionsListModal from './ui/PurchasePlanItemsVersionsLi
 import { useAuth } from '@/contexts/AuthContext';
 import { PurchasePlanModeProvider, usePurchasePlanMode, appendDraftParam } from './contexts/PurchasePlanModeContext';
 import { usePurchasePlanDraftActions } from './hooks/usePurchasePlanDraftActions';
+import { usePurchasePlanTour } from './hooks/usePurchasePlanTour';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
 
 /**
  * Внутренний компонент таблицы, который использует хуки
@@ -42,9 +45,13 @@ function PurchasePlanItemsTableContent() {
   // Используем главный хук, который композирует все остальные хуки
   const table = usePurchasePlanItemsTable();
   const { isDraft, title } = usePurchasePlanMode();
+  // Ознакомительный тур: шаги для плана или драфта выбираются по режиму
+  const { tour, tourTitle } = usePurchasePlanTour();
   // Возврат из карточки договора открывает этот же раздел плана
   const backUrl = usePurchasePlanBackUrl();
-  const { userEmail } = useAuth();
+  const { userEmail, userRole, isPurchaser } = useAuth();
+  // Галочку «Проверено закупщиком» ставят только закупщики и администраторы (бэкенд проверяет то же)
+  const canCheckPurchaser = isPurchaser || userRole === 'admin';
   const printRef = useRef<HTMLDivElement>(null);
 
   // Настройка ReactToPrint для экспорта в PDF
@@ -598,6 +605,7 @@ function PurchasePlanItemsTableContent() {
     onBudgetAmountUpdate: table.editing.handleBudgetAmountUpdate,
     onComplexityUpdate: table.editing.handleComplexityUpdate,
     onExcludeFromPlanningToggle: table.editing.handleExcludeFromPlanningToggle,
+    onPurchaserCheckedToggle: table.editing.handlePurchaserCheckedToggle,
     setEditingBudgetAmount: table.editing.setEditingBudgetAmount,
     setEditingComplexity: table.editing.setEditingComplexity,
     onPurchaseRequestIdUpdate: table.editing.handlePurchaseRequestIdUpdate,
@@ -673,12 +681,14 @@ function PurchasePlanItemsTableContent() {
         onCloseVersion={handleCloseVersion}
         canEdit={true} // TODO: получить из контекста или пропсов
         columnsMenuButtonRef={table.columns.columnsMenuButtonRef}
+        actions={<TourButton onClick={tour.start} />}
       />
 
       {/* Блок с кнопками управления и информацией о записях */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            data-tour="reset-filters"
             onClick={handleResetFilters}
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors"
           >
@@ -687,6 +697,7 @@ function PurchasePlanItemsTableContent() {
           <div className="relative">
             <button
               ref={table.columns.columnsMenuButtonRef}
+              data-tour="columns-settings"
               onClick={handleColumnsSettings}
               className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
               title="Настройка колонок"
@@ -702,7 +713,7 @@ function PurchasePlanItemsTableContent() {
           >
             Только в Плане
           </button>
-          <div className="flex items-center gap-2">
+          <div data-tour="year-filter" className="flex items-center gap-2">
             <span className="text-xs text-gray-700 font-medium">Год:</span>
             {table.allYears.map((year) => (
               <button
@@ -730,6 +741,7 @@ function PurchasePlanItemsTableContent() {
           </div>
           {true && (
             <button
+              data-tour="create-item"
               onClick={handleCreateItem}
               className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Создать новую строку плана закупок"
@@ -752,6 +764,7 @@ function PurchasePlanItemsTableContent() {
           )}
           {!isDraft && (
             <button
+              data-tour="versions"
               onClick={handleViewVersions}
               className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1"
               title="Просмотр редакций плана закупок"
@@ -761,6 +774,7 @@ function PurchasePlanItemsTableContent() {
             </button>
           )}
           <button
+            data-tour="export-pdf"
             onClick={handleExportPDF}
             className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
             title="Экспорт в PDF"
@@ -856,6 +870,7 @@ function PurchasePlanItemsTableContent() {
             setFilters={table.filters.setFilters}
             setLocalFilters={table.filters.setLocalFilters}
             setCurrentPage={table.setCurrentPage}
+            onPurchaserCheckedFilterChange={table.filters.handlePurchaserCheckedFilterChange}
             cfoFilterButtonRef={table.filters.cfoFilterButtonRef}
             cfoFilter={table.filters.cfoFilter}
             isCfoFilterOpen={table.filters.isCfoFilterOpen}
@@ -913,6 +928,7 @@ function PurchasePlanItemsTableContent() {
             setAnimatingDates={table.editing.setAnimatingDates}
             setEditingDate={table.editing.setEditingDate}
             canEdit={table.modals.canEdit}
+            canCheckPurchaser={canCheckPurchaser}
             isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
             holidayDateKeys={table.holidayDateKeys}
           />
@@ -1105,6 +1121,9 @@ function PurchasePlanItemsTableContent() {
         }}
         onClose={() => table.versions.setIsVersionsListModalOpen(false)}
       />
+
+      {/* Ознакомительный тур по разделу (кнопка «Обучение» — справа от сводки) */}
+      <Tour tour={tour} title={tourTitle} />
       </div>
   );
 }

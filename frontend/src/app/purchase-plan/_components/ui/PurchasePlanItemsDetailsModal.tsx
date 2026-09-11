@@ -6,6 +6,7 @@ import { getBackendUrl } from '@/utils/api';
 import { purchaserDisplayName } from '@/utils/purchaser';
 import { PurchasePlanItem, PurchaseRequest, ModalTab, PurchasePlanItemComment } from '../types/purchase-plan-items.types';
 import { useAuth } from '../hooks/useAuth';
+import { getChangeFieldLabel } from '../utils/audit.utils';
 
 interface PurchasePlanItemsDetailsModalProps {
   isOpen: boolean;
@@ -312,15 +313,17 @@ export default function PurchasePlanItemsDetailsModal({
                           <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Поле</th>
                           <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Было</th>
                           <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Стало</th>
+                          <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Кто</th>
                           <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700">Дата</th>
                         </tr>
                       </thead>
                       <tbody>
                         {changes.map((change: any) => (
                           <tr key={change.id || change.fieldName} className="bg-white border-b border-gray-100 hover:bg-gray-50">
-                            <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-100">{change.fieldName || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-100">{getChangeFieldLabel(change.fieldName)}</td>
                             <td className="px-3 py-2 text-sm text-red-600 border-r border-gray-100">{change.valueBefore || '-'}</td>
                             <td className="px-3 py-2 text-sm text-green-600 border-r border-gray-100">{change.valueAfter || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-gray-700 border-r border-gray-100">{change.changedBy || '-'}</td>
                             <td className="px-3 py-2 text-sm text-gray-500">
                               {change.changeDate ? new Date(change.changeDate).toLocaleString('ru-RU') : '-'}
                             </td>

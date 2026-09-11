@@ -51,10 +51,11 @@ export default function PurchaseRequestsTableHeader({
   onCopyToClipboard,
 }: PurchaseRequestsTableHeaderProps) {
   return (
-    <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
+    <div data-tour="toolbar" className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
       <div className="flex items-center gap-2 flex-wrap">
         {/* Кнопка - Сбросить фильтры */}
         <button
+          data-tour="reset-filters"
           onClick={onResetFilters}
           className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
         >

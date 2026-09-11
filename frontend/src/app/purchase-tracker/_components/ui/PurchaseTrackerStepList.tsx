@@ -8,6 +8,7 @@ interface PurchaseTrackerStepListProps {
 export default function PurchaseTrackerStepList({ steps }: PurchaseTrackerStepListProps) {
   return (
     <div
+      data-tour="step-list"
       className="mt-2.5 flex flex-col overflow-hidden rounded-xl py-[5px]"
       style={{ background: '#FAFBFD', border: '1px solid #F0F2F7' }}
     >

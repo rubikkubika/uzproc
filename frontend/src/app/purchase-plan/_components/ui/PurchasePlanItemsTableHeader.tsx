@@ -50,6 +50,8 @@ interface PurchasePlanItemsTableHeaderProps {
   canEdit: boolean;
   // Ref для кнопки колонок
   columnsMenuButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  /** Действия справа от сводок (напр. кнопка запуска тура) */
+  actions?: React.ReactNode;
 }
 
 /**
@@ -90,12 +92,13 @@ export default function PurchasePlanItemsTableHeader({
   onCloseVersion,
   canEdit,
   columnsMenuButtonRef,
+  actions,
 }: PurchasePlanItemsTableHeaderProps) {
   return (
     <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
       {/* Сводная таблица по закупщикам */}
       <div className="flex items-start w-full">
-        <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+        <div data-tour="purchaser-summary" className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
             <div className="overflow-auto max-h-[220px]">
               <table className="border-collapse table-auto">
                 <thead className="bg-gray-50 sticky top-0 z-10">
@@ -248,15 +251,19 @@ export default function PurchasePlanItemsTableHeader({
 
           {/* Свод по ЦФО */}
           {cfoSummary && cfoFilter && setCfoFilter && (
-            <div className="ml-3 min-w-0 overflow-x-auto">
+            <div data-tour="cfo-summary" className="ml-3 min-w-0 overflow-x-auto">
               <PurchasePlanItemsCfoSummaryTable
                 cfoSummary={cfoSummary}
                 cfoFilter={cfoFilter}
                 setCfoFilter={setCfoFilter}
                 setCurrentPage={setCurrentPage}
+                selectedYear={selectedYear}
               />
             </div>
           )}
+
+          {/* Действия справа (кнопка «Обучение») */}
+          {actions ? <div className="ml-auto pl-3 flex-shrink-0">{actions}</div> : null}
         </div>
     </div>
   );

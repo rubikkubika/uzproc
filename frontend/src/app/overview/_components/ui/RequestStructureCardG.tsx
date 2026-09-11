@@ -32,7 +32,7 @@ export function RequestStructureCardG({ planned, unplanned, unapproved, cancelle
   const maxVal = Math.max(...bars.map((b) => b.value), 1);
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 flex flex-col gap-4">
+    <div data-tour="plan-request-structure" className="bg-white rounded-xl shadow p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">Структура заявок</h3>
         <span className="text-xs text-gray-400">Итого: {total}</span>

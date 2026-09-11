@@ -3,6 +3,7 @@ import {
   DEFAULT_VISIBLE_COLUMNS,
   DRAFT_DEFAULT_VISIBLE_COLUMNS,
   ALL_COLUMNS,
+  PLAN_ALL_COLUMNS,
   DRAFT_ALL_COLUMNS,
   COLUMNS_VISIBILITY_STORAGE_KEY,
   COLUMN_ORDER_STORAGE_KEY,
@@ -67,8 +68,8 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const visibilityKey = isDraft ? DRAFT_COLUMNS_VISIBILITY_STORAGE_KEY : COLUMNS_VISIBILITY_STORAGE_KEY;
   const orderKey = isDraft ? DRAFT_COLUMN_ORDER_STORAGE_KEY : COLUMN_ORDER_STORAGE_KEY;
   const widthsKey = isDraft ? DRAFT_COLUMN_WIDTHS_STORAGE_KEY : COLUMN_WIDTHS_STORAGE_KEY;
-  // Набор колонок, доступных в текущем режиме: в драфте часть колонок недоступна (DRAFT_HIDDEN_COLUMNS)
-  const availableColumns = useMemo(() => (isDraft ? DRAFT_ALL_COLUMNS : ALL_COLUMNS), [isDraft]);
+  // Набор колонок, доступных в текущем режиме: скрытые колонки (PLAN_HIDDEN_COLUMNS / DRAFT_HIDDEN_COLUMNS) недоступны
+  const availableColumns = useMemo(() => (isDraft ? DRAFT_ALL_COLUMNS : PLAN_ALL_COLUMNS), [isDraft]);
   const availableColumnKeys = useMemo(
     () => new Set<string>(availableColumns.map(c => c.key)),
     [availableColumns]

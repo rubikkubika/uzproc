@@ -36,26 +36,28 @@ export default function PurchasePlanDraftToolbar({
           Драфт плана закупок{year !== null ? ` на ${year} год` : ''}
         </span>
         <button
+          data-tour="draft-generate"
           onClick={onGenerate}
           disabled={isBusy}
           className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Сформировать позиции драфта из действующих договоров Uzum Market, которые заканчиваются начиная с октября предыдущего года и в течение года планирования"
+          title="Сформировать позиции драфта из действующих договоров Uzum Market и связанных с заявкой ДС, которые заканчиваются начиная с октября предыдущего года и в течение года планирования"
         >
           <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} />
           {isGenerating ? 'Формирование…' : 'Сформировать из договоров'}
         </button>
         <button
+          data-tour="draft-clear"
           onClick={onClear}
           disabled={isBusy}
           className="px-2 py-1 text-xs bg-red-50 text-red-700 rounded border border-red-300 hover:bg-red-100 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Удалить все позиции драфта за выбранный год"
+          title="Скрыть все позиции драфта за выбранный год (история и комментарии сохраняются, повторное формирование вернёт позиции с теми же id)"
         >
           <Trash2 className="w-3 h-3" />
           {isClearing ? 'Очистка…' : 'Очистить драфт'}
         </button>
       </div>
 
-      <div className="text-xs text-gray-700">
+      <div data-tour="draft-status" className="text-xs text-gray-700">
         {errorMessage ? (
           <span className="text-red-600">{errorMessage}</span>
         ) : lastResult ? (
@@ -65,7 +67,7 @@ export default function PurchasePlanDraftToolbar({
           </span>
         ) : (
           <span className="text-gray-500">
-            Источник: договоры Uzum Market (без ДС и спецификаций) в статусе «Подписан»
+            Источник: договоры Uzum Market и связанные с заявкой ДС (без спецификаций) в статусе «Подписан»
           </span>
         )}
       </div>

@@ -10,6 +10,8 @@ interface ContractsTableTabsProps {
   showRemarks: boolean;
   onRemarksToggle: () => void;
   tabCounts?: Record<TabType, number | null>;
+  /** Действия в правом верхнем углу раздела (напр. кнопка запуска тура). */
+  actions?: React.ReactNode;
 }
 
 /**
@@ -22,6 +24,7 @@ export default function ContractsTableTabs({
   showRemarks,
   onRemarksToggle,
   tabCounts,
+  actions,
 }: ContractsTableTabsProps) {
   const tabs: Array<{ key: TabType; label: string; title?: string }> = [
     {
@@ -38,6 +41,8 @@ export default function ContractsTableTabs({
 
   return (
     <div className="sticky top-0 left-0 right-0 z-30 flex items-center gap-0.5 pt-0.5 pb-0.5 bg-white shadow-sm" style={{ minHeight: '30px', width: '100%', backgroundColor: 'white' }}>
+      {/* Обёртка вкладок — только цель тура (data-tour), раскладка та же: flex + gap-0.5 */}
+      <div data-tour="tabs" className="flex items-center gap-0.5">
       {tabs.map((tab) => {
         const count = tabCounts?.[tab.key];
         const isActive = !showRemarks && activeTab === tab.key;
@@ -73,10 +78,12 @@ export default function ContractsTableTabs({
           </button>
         );
       })}
+      </div>
 
       <div className="flex-1" />
 
       <button
+        data-tour="remarks-toggle"
         onClick={onRemarksToggle}
         className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors shadow-sm flex items-center gap-1 ${
           showRemarks
@@ -87,6 +94,7 @@ export default function ContractsTableTabs({
         <MessageSquareWarning className="w-3 h-3" />
         Замечания
       </button>
+      {actions ? <div className="flex-shrink-0">{actions}</div> : null}
     </div>
   );
 }

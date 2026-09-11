@@ -10,6 +10,13 @@ export interface PurchasePlanItem {
   currentContractName?: string | null;
   /** ID действующего договора, из которого сформирована позиция драфта */
   sourceContractId?: number | null;
+  /** «Проверено закупщиком» (драфт) и кто/когда последний раз ставил или снимал отметку */
+  purchaserChecked?: boolean | null;
+  purchaserCheckedAt?: string | null;
+  purchaserCheckedBy?: string | null;
+  /** Кто/когда последний раз исключал позицию из планирования («глазик») или возвращал в план */
+  excludedFromPlanningAt?: string | null;
+  excludedFromPlanningBy?: string | null;
   budgetAmount: number | null;
   contractEndDate: string | null;
   requestDate: string | null;

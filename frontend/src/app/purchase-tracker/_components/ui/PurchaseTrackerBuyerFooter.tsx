@@ -9,6 +9,7 @@ interface PurchaseTrackerBuyerFooterProps {
 export default function PurchaseTrackerBuyerFooter({ detail }: PurchaseTrackerBuyerFooterProps) {
   return (
     <div
+      data-tour="buyer"
       className="flex items-center gap-3 px-6 py-3.5"
       style={{ background: '#FAFBFC', borderTop: '1px solid #F0F2F7' }}
     >

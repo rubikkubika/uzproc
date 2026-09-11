@@ -2,8 +2,8 @@ import {
   TOUR_POPOVER_GAP,
   TOUR_SPOTLIGHT_PADDING,
   TOUR_VIEWPORT_MARGIN,
-} from '../constants/delivery-tour.constants';
-import type { TourPopoverPosition, TourRect } from '../types/delivery-tour.types';
+} from '../constants/tour.constants';
+import type { TourPopoverPosition, TourRect } from '../types/tour.types';
 
 /** CSS-селектор элемента шага по ключу `data-tour`. */
 export function tourTargetSelector(targetKey: string): string {

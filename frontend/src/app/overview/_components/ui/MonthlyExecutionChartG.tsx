@@ -33,7 +33,7 @@ export function MonthlyExecutionChartG({ points, currentMonth, loading }: Props)
   const yLines = [0, 25, 50, 75, 100];
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+    <div data-tour="plan-monthly-chart" className="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
       <h3 className="text-sm font-semibold text-gray-700">Выполнение плана по месяцам</h3>
 
       {loading ? (

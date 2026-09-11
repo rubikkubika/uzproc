@@ -178,7 +178,7 @@ export default function PurchaseRequestsTableColumnsHeader({
   }, [showTrackTip]);
 
   return (
-    <thead className="bg-gray-50 sticky top-[60px] z-20 [&_th]:pt-2">
+    <thead data-tour="table-head" className="bg-gray-50 sticky top-[60px] z-20 [&_th]:pt-2">
       <tr>
         {filteredColumnOrder.map(columnKey => {
           const isDragging = draggedColumn === columnKey;
@@ -187,8 +187,9 @@ export default function PurchaseRequestsTableColumnsHeader({
           // Колонка "excludeFromInWork" - иконка Eye
           if (columnKey === 'excludeFromInWork') {
             return (
-              <th 
+              <th
                 key={columnKey}
+                data-tour="col-excludeFromInWork"
                 className="px-0 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
               >
@@ -450,6 +451,7 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
+                data-tour="col-comments"
                 draggable
                 onDragStart={(e) => onDragStart(e, columnKey)}
                 onDragOver={(e) => onDragOver(e, columnKey)}
@@ -710,6 +712,7 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
+                data-tour="col-status"
                 draggable
                 onDragStart={(e) => onDragStart(e, columnKey)}
                 onDragOver={(e) => onDragOver(e, columnKey)}
@@ -892,6 +895,7 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
+                data-tour="col-track"
                 draggable
                 onDragStart={(e) => onDragStart(e, columnKey)}
                 onDragOver={(e) => onDragOver(e, columnKey)}
@@ -978,6 +982,7 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
+                data-tour="col-rating"
                 className="px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: `${getColumnWidth('rating')}px`, minWidth: `${getColumnWidth('rating')}px`, maxWidth: `${getColumnWidth('rating')}px`, verticalAlign: 'top' }}
               >

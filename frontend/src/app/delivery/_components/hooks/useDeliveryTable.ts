@@ -215,6 +215,44 @@ export const useDeliveryTable = () => {
     }
   }, [allItems]);
 
+  /**
+   * Ручной ввод фактической даты поставки или даты ЭСФ прямо в таблице (пустая строка очищает дату).
+   * Значение обновляется оптимистично, затем строка берётся из ответа сервера: для факта сервер
+   * меняет и статус отгрузки («Поставлено» / «Ожидает поставку»), и статус оплаты.
+   */
+  const updateDeliveryDateField = useCallback(async (
+    id: number,
+    field: 'actualDeliveryDate' | 'esfDate',
+    endpoint: 'actual-delivery-date' | 'esf-date',
+    newDate: string,
+  ) => {
+    const prev = allItems;
+    setAllItems(items => items.map(it => (it.id === id ? { ...it, [field]: newDate || null } : it)));
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/deliveries/${id}/${endpoint}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: newDate }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const saved = await res.json() as Delivery;
+      setAllItems(items => items.map(it => (it.id === id ? { ...it, ...saved } : it)));
+    } catch (err) {
+      console.error(`Не удалось обновить дату поставки (${field}):`, err);
+      setAllItems(prev);
+    }
+  }, [allItems]);
+
+  const updateActualDeliveryDate = useCallback(
+    (id: number, newDate: string) => updateDeliveryDateField(id, 'actualDeliveryDate', 'actual-delivery-date', newDate),
+    [updateDeliveryDateField]
+  );
+
+  const updateEsfDate = useCallback(
+    (id: number, newDate: string) => updateDeliveryDateField(id, 'esfDate', 'esf-date', newDate),
+    [updateDeliveryDateField]
+  );
+
   useInfiniteScroll(loadMoreRef, {
     enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
     onLoadMore: useCallback(() => {
@@ -254,6 +292,8 @@ export const useDeliveryTable = () => {
     reload,
     updateDeliveryDeadline,
     updatePlannedDeliveryDate,
+    updateActualDeliveryDate,
+    updateEsfDate,
     plannedDate,
     setPlannedDate,
   };

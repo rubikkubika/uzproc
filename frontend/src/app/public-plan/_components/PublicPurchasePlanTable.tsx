@@ -9,6 +9,9 @@ import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
 import PurchasePlanItemsDetailsModal from '../../purchase-plan/_components/ui/PurchasePlanItemsDetailsModal';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { usePublicPlanTour } from './hooks/usePublicPlanTour';
 
 // Функция для получения пути к логотипу компании
 const getCompanyLogoPath = (companyName: string | null): string | null => {
@@ -118,10 +121,10 @@ const getPurchaseRequestStatusColor = (status: string | null): string => {
 const ALL_STATUSES = ['Проект', 'В плане', 'Заявка', 'Исключена', 'Пусто'];
 const DEFAULT_STATUSES = ['Проект', 'В плане', 'Заявка', 'Пусто'];
 
+// Колонка «Исполнитель» (purchaserCompany) скрыта: её нет ни в колонках по умолчанию, ни в меню «Колонки»
 const DEFAULT_VISIBLE_COLUMNS = [
   'id',
   'company',
-  'purchaserCompany',
   'purchaseRequestId',
   'cfo',
   'purchaseSubject',
@@ -137,7 +140,6 @@ const ALL_COLUMNS = [
   { key: 'guid', label: 'GUID' },
   { key: 'year', label: 'Год' },
   { key: 'company', label: 'Заказчик' },
-  { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет' },
@@ -194,7 +196,26 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   updatedAt: 128,
 };
 
-export default function PublicPurchasePlanTable() {
+interface PublicPurchasePlanTableProps {
+  /** Публичный драфт плана закупок: позиции драфта (draft=true) и отдельные настройки колонок */
+  isDraft?: boolean;
+  /** Начальные фильтры из ссылки (?year=&cfo=), например из сводной по ЦФО драфта */
+  initialYear?: number | null;
+  initialCfoFilter?: string[];
+}
+
+export default function PublicPurchasePlanTable({
+  isDraft = false,
+  initialYear = null,
+  initialCfoFilter = [],
+}: PublicPurchasePlanTableProps) {
+  // Настройки колонок публичного драфта хранятся отдельно от публичного плана
+  const storageKey = (key: string) => (isDraft ? `draft_${key}` : key);
+  // Позиции публичного драфта запрашиваются с draft=true
+  const planItemsQuery = (params: URLSearchParams) => {
+    if (isDraft) params.set('draft', 'true');
+    return params.toString();
+  };
   const [data, setData] = useState<PageResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +226,7 @@ export default function PublicPurchasePlanTable() {
   const [hasMore, setHasMore] = useState(true); // Есть ли еще данные для загрузки
   const loadMoreRef = useRef<HTMLDivElement>(null); // Ref для отслеживания прокрутки
   const initialTotalElementsRef = useRef<number | null>(null); // Сохраняем totalElements из первой загрузки
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(initialYear);
   const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set()); // Множество выбранных месяцев: -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
   const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null); // Год для фильтра по месяцу (если отличается от selectedYear)
   const [lastSelectedMonthIndex, setLastSelectedMonthIndex] = useState<number | null>(null); // Индекс последнего выбранного месяца для Shift+клик
@@ -275,7 +296,7 @@ export default function PublicPurchasePlanTable() {
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [cfoFilter, setCfoFilter] = useState<Set<string>>(() => new Set(initialCfoFilter));
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
@@ -303,6 +324,8 @@ export default function PublicPurchasePlanTable() {
   const { userEmail, userRole } = useAuth();
   // Залогинен — логотип уже есть в общем сайдбаре, в шапке таблицы его прячем
   const isAuthenticated = !!(userRole || userEmail);
+  // Ознакомительный тур («Обучение»): шаги плана или драфта
+  const { tour, tourTitle } = usePublicPlanTour(isDraft);
   const loadedCommentsRef = useRef<Set<number>>(new Set());
   const fetchingCommentsRef = useRef<Set<number>>(new Set());
 
@@ -426,7 +449,7 @@ export default function PublicPurchasePlanTable() {
   // Загружаем сохраненный порядок колонок из localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('publicPurchasePlanTableColumnOrder');
+      const saved = localStorage.getItem(storageKey('publicPurchasePlanTableColumnOrder'));
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют и видимы
@@ -516,7 +539,7 @@ export default function PublicPurchasePlanTable() {
   // Загружаем сохраненные ширины колонок из localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('publicPurchasePlanTableColumnWidths');
+      const saved = localStorage.getItem(storageKey('publicPurchasePlanTableColumnWidths'));
       if (saved) {
         const widths = JSON.parse(saved);
         setColumnWidths(prev => ({ ...DEFAULT_COLUMN_WIDTHS, ...widths }));
@@ -529,7 +552,7 @@ export default function PublicPurchasePlanTable() {
   // Сохраняем порядок колонок в localStorage
   const saveColumnOrder = useCallback((order: string[]) => {
     try {
-      localStorage.setItem('publicPurchasePlanTableColumnOrder', JSON.stringify(order));
+      localStorage.setItem(storageKey('publicPurchasePlanTableColumnOrder'), JSON.stringify(order));
     } catch (err) {
       console.error('Error saving column order:', err);
     }
@@ -538,7 +561,7 @@ export default function PublicPurchasePlanTable() {
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
     try {
-      localStorage.setItem('publicPurchasePlanTableColumnWidths', JSON.stringify(widths));
+      localStorage.setItem(storageKey('publicPurchasePlanTableColumnWidths'), JSON.stringify(widths));
     } catch (err) {
       console.error('Error saving column widths:', err);
     }
@@ -678,7 +701,7 @@ export default function PublicPurchasePlanTable() {
   useEffect(() => {
     const fetchYears = async () => {
       try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/years`);
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/years${isDraft ? '?draft=true' : ''}`);
         if (response.ok) {
           const years = await response.json();
           setAllYears(years.sort((a: number, b: number) => b - a));
@@ -763,7 +786,7 @@ export default function PublicPurchasePlanTable() {
         // Для публичного плана всегда используем текущее состояние, а не версию
         params.append('versionId', 'null');
         
-        const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+        const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${planItemsQuery(params)}`;
         const response = await fetch(fetchUrl);
         if (response.ok) {
           const result = await response.json();
@@ -884,7 +907,7 @@ export default function PublicPurchasePlanTable() {
         // Для публичного плана всегда используем текущее состояние, а не версию
         params.append('versionId', 'null');
         
-        const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+        const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${planItemsQuery(params)}`;
         const response = await fetch(fetchUrl);
         if (response.ok) {
           const result = await response.json();
@@ -1109,7 +1132,7 @@ export default function PublicPurchasePlanTable() {
       // Для публичного плана всегда используем текущее состояние, а не версию
       params.append('versionId', 'null');
       
-      const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+      const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${planItemsQuery(params)}`;
       const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
@@ -1305,7 +1328,7 @@ export default function PublicPurchasePlanTable() {
   // Настройка ReactToPrint для экспорта в PDF
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `План_закупок_публичный_${selectedYear || 'Все'}_${new Date().toISOString().split('T')[0]}`,
+    documentTitle: `${isDraft ? 'Драфт_плана_закупок' : 'План_закупок'}_публичный_${selectedYear || 'Все'}_${new Date().toISOString().split('T')[0]}`,
     pageStyle: `
       @page {
         size: A4 landscape;
@@ -1397,7 +1420,7 @@ export default function PublicPurchasePlanTable() {
       XLSX.utils.book_append_sheet(wb, ws, 'План закупок');
 
       // Генерируем имя файла с датой
-      const fileName = `План_закупок_публичный_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `${isDraft ? 'Драфт_плана_закупок' : 'План_закупок'}_публичный_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
 
       // Сохраняем файл
       XLSX.writeFile(wb, fileName);
@@ -1493,7 +1516,7 @@ export default function PublicPurchasePlanTable() {
         
         const [cfoResponse, planResponse] = await Promise.all([
           fetch(`${getBackendUrl()}/api/cfos/names?for=purchase-plan-items`),
-          fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`),
+          fetch(`${getBackendUrl()}/api/purchase-plan-items?${planItemsQuery(params)}`),
         ]);
         const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];
         if (planResponse.ok) {
@@ -1993,7 +2016,7 @@ export default function PublicPurchasePlanTable() {
     <div className="bg-gray-50 flex-1 p-4 flex flex-col min-h-0">
       <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Заголовок с логотипом. Залогиненным логотип не дублируем — он есть в сайдбаре */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4 flex-shrink-0">
+        <div data-tour="page-header" className="px-6 py-4 border-b border-gray-200 flex items-center gap-4 flex-shrink-0">
           {!isAuthenticated && (
             <button
               onClick={() => {
@@ -2014,9 +2037,10 @@ export default function PublicPurchasePlanTable() {
           )}
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900">
-              План закупок {selectedYear ? selectedYear : ''} (текущая редакция)
+              {isDraft ? 'Драфт плана закупок' : 'План закупок'} {selectedYear ? selectedYear : ''}{isDraft ? '' : ' (текущая редакция)'}
             </h2>
           </div>
+          <TourButton onClick={tour.start} />
         </div>
 
         {/* Сводная таблица и элементы управления */}
@@ -2024,7 +2048,7 @@ export default function PublicPurchasePlanTable() {
           <div className="flex items-start w-full">
             <div className="flex items-start">
               {/* Сводная таблица */}
-              <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0 relative">
+              <div data-tour="cfo-summary" className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0 relative">
                 <div className="overflow-x-auto">
                   <table className="border-collapse table-auto w-full">
                     <thead className="bg-gray-50">
@@ -2138,6 +2162,7 @@ export default function PublicPurchasePlanTable() {
           <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
             <div className="flex items-center gap-2">
               <button
+                data-tour="reset-filters"
                 onClick={() => {
                   const emptyFilters = {
                     company: '',
@@ -2172,7 +2197,7 @@ export default function PublicPurchasePlanTable() {
               >
                 Сбросить фильтры
               </button>
-              <div className="flex items-center gap-2">
+              <div data-tour="year-filter" className="flex items-center gap-2">
                 <span className="text-xs text-gray-700 font-medium">Год:</span>
                 {allYears.map((year) => (
                   <button
@@ -2274,7 +2299,7 @@ export default function PublicPurchasePlanTable() {
               </div>
 
               {/* Настройки колонок */}
-              <div className="relative">
+              <div data-tour="columns-settings" className="relative">
                 <button
                   ref={columnsMenuButtonRef}
                   type="button"
@@ -2319,12 +2344,12 @@ export default function PublicPurchasePlanTable() {
                           setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
                           setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
                           if (typeof window !== 'undefined') {
-                            localStorage.setItem('publicPurchasePlan_columnsVisibility', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
-                            localStorage.setItem('publicPurchasePlan_columnOrder', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+                            localStorage.setItem(storageKey('publicPurchasePlan_columnsVisibility'), JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+                            localStorage.setItem(storageKey('publicPurchasePlan_columnOrder'), JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
                           }
                           setColumnWidths(DEFAULT_COLUMN_WIDTHS);
                           if (typeof window !== 'undefined') {
-                            localStorage.setItem('publicPurchasePlan_columnWidths', JSON.stringify(DEFAULT_COLUMN_WIDTHS));
+                            localStorage.setItem(storageKey('publicPurchasePlan_columnWidths'), JSON.stringify(DEFAULT_COLUMN_WIDTHS));
                           }
                         }}
                         className="w-full px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
@@ -2338,6 +2363,7 @@ export default function PublicPurchasePlanTable() {
 
               {/* Экспорт в PDF */}
               <button
+                data-tour="exports"
                 onClick={exportToPDF}
                 className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
                 title="Экспорт в PDF"
@@ -2380,7 +2406,7 @@ export default function PublicPurchasePlanTable() {
         ) : (
           <div ref={printRef} className="flex-1 min-h-0 overflow-auto print-container custom-scrollbar">
             <table className="w-full border-collapse">
-              <thead className="bg-gray-50 sticky top-0 z-10">
+              <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   {columnOrder.filter(col => visibleColumns.has(col)).map((columnKey) => {
                     if (columnKey === 'id') {
@@ -2549,6 +2575,7 @@ export default function PublicPurchasePlanTable() {
                           onDragLeave={handleDragLeave}
                           onDrop={(e) => handleDrop(e, columnKey)}
                           className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${draggedColumn === columnKey ? 'opacity-50' : ''} ${dragOverColumn === columnKey ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                          data-tour="col-budgetAmount"
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
                         >
                           <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -2786,6 +2813,7 @@ export default function PublicPurchasePlanTable() {
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, 'status')}
                       className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      data-tour="col-status"
                       style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, verticalAlign: 'top', overflow: 'hidden' }}
                     >
                       <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -2906,7 +2934,7 @@ export default function PublicPurchasePlanTable() {
                     }
                     return null;
                   })}
-                  <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px', verticalAlign: 'top', overflow: 'hidden' }}>
+                  <th data-tour="monthly-chart" className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px', verticalAlign: 'top', overflow: 'hidden' }}>
                     <div className="flex flex-col" style={{ minWidth: 0, width: '100%', gap: '4px' }}>
                       <div className="flex items-center min-h-[20px]">
                         <div className="flex-1 flex items-end h-20 relative" style={{ minHeight: '80px', height: '80px', paddingLeft: '0', paddingRight: '0', gap: '2px', width: '100%' }}>
@@ -3232,7 +3260,7 @@ export default function PublicPurchasePlanTable() {
                         }
                         if (columnKey === 'comment') {
                           return (
-                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px` }}>
+                            <td key={columnKey} data-tour={isFirstRow ? 'first-row-comment' : undefined} className={`px-2 py-1 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px` }}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -3255,8 +3283,9 @@ export default function PublicPurchasePlanTable() {
                         }
                         return null;
                       })}
-                      <td 
-                        className="px-1 py-1 border-r border-gray-200 overflow-hidden relative" 
+                      <td
+                        data-tour={isFirstRow ? 'first-row-gantt' : undefined}
+                        className="px-1 py-1 border-r border-gray-200 overflow-hidden relative"
                         style={{ width: '350px', minWidth: '350px', contain: 'layout style paint' }}
                       >
                         <div className="relative w-full overflow-hidden" style={{ contain: 'layout style paint' }}>
@@ -3331,6 +3360,8 @@ export default function PublicPurchasePlanTable() {
           />
         );
       })()}
+
+      <Tour tour={tour} title={tourTitle} />
     </div>
   );
 }

@@ -23,7 +23,8 @@ import {
   Star,
   Map,
   Building2,
-  Truck
+  Truck,
+  FilePen
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,7 +53,8 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
   const initiatorItems = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
-    { id: 'public-plan', label: 'План закупок (публичный)', icon: FileText, isExternal: true },
+    { id: 'public-plan', label: 'План закупок (публичный)', icon: FileText, isExternal: true, route: '/public-plan' },
+    { id: 'public-plan-draft', label: 'Драфт плана закупок (публичный)', icon: FilePen, isExternal: true, route: '/public-plan-draft' },
   ];
 
   const initiatorDevelopmentItems = [
@@ -264,7 +266,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       onClick={() => {
                         if (isDisabled) return;
                         if (isExternal) {
-                          router.push('/public-plan');
+                          router.push((item as any).route || '/public-plan');
                           setIsMobileMenuOpen(false);
                         } else if (item.id === 'suppliers') {
                           router.push('/?tab=suppliers');
@@ -326,7 +328,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       onClick={() => {
                         if (isDisabled) return;
                         if (isExternal) {
-                          router.push('/public-plan');
+                          router.push((item as any).route || '/public-plan');
                           setIsMobileMenuOpen(false);
                         } else {
                           handleTabChange(item.id);

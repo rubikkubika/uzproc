@@ -34,6 +34,16 @@ public class PurchasePlanItemTextFiltersDto {
     private String createdAt;
     /** Дата обновления позиции (ISO) */
     private String updatedAt;
+    /** «Проверено закупщиком» (драфт): «true» — только проверенные, «false» — только непроверенные */
+    private String purchaserChecked;
+
+    public String getPurchaserChecked() {
+        return purchaserChecked;
+    }
+
+    public void setPurchaserChecked(String purchaserChecked) {
+        this.purchaserChecked = purchaserChecked;
+    }
 
     public String getId() {
         return id;
@@ -146,6 +156,7 @@ public class PurchasePlanItemTextFiltersDto {
                 ", currentContractBalance='" + currentContractBalance + '\'' +
                 ", createdAt='" + createdAt + '\'' +
                 ", updatedAt='" + updatedAt + '\'' +
+                ", purchaserChecked='" + purchaserChecked + '\'' +
                 '}';
     }
 }

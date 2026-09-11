@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { SEARCH_CHIPS, SEARCH_PLACEHOLDER } from '../constants/purchase-tracker.constants';
 import { SearchIcon } from './icons';
 
@@ -5,12 +6,14 @@ interface PurchaseTrackerSearchProps {
   query: string;
   onQueryChange: (value: string) => void;
   onChipClick: (value: string) => void;
+  /** Действия справа в строке подсказок (напр. кнопка запуска тура). */
+  actions?: ReactNode;
 }
 
 /** Строка поиска с подсказками-чипами */
-export default function PurchaseTrackerSearch({ query, onQueryChange, onChipClick }: PurchaseTrackerSearchProps) {
+export default function PurchaseTrackerSearch({ query, onQueryChange, onChipClick, actions }: PurchaseTrackerSearchProps) {
   return (
-    <div className="flex flex-col gap-2.5 px-8 pt-6 pb-1">
+    <div data-tour="search" className="flex flex-col gap-2.5 px-8 pt-6 pb-1">
       <div
         className="flex items-center gap-3 rounded-2xl bg-white px-[18px] py-[13px]"
         style={{ border: '1.5px solid #DFE3EB', boxShadow: '0 1px 2px rgba(16,24,40,.05)' }}
@@ -36,6 +39,7 @@ export default function PurchaseTrackerSearch({ query, onQueryChange, onChipClic
             {chip}
           </button>
         ))}
+        {actions ? <div className="ml-auto flex-shrink-0">{actions}</div> : null}
       </div>
     </div>
   );

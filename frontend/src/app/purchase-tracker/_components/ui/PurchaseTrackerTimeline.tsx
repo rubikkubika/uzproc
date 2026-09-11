@@ -9,7 +9,7 @@ interface PurchaseTrackerTimelineProps {
 /** Вертикальная трек-лента этапов закупки (вариант 1a) */
 export default function PurchaseTrackerTimeline({ stages }: PurchaseTrackerTimelineProps) {
   return (
-    <div className="px-6 pt-[22px] pb-1">
+    <div data-tour="timeline" className="px-6 pt-[22px] pb-1">
       {stages.map((stage, i) => (
         <div key={i} className="flex gap-4">
           {/* Левая колонка: узел + соединительная линия */}

@@ -1,31 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DELIVERY_TOUR_STEPS } from '../constants/delivery-tour.constants';
-import type { TourStep } from '../types/delivery-tour.types';
-
-interface UseDeliveryTourResult {
-  active: boolean;
-  /** Полный список шагов — для оглавления тура. */
-  steps: TourStep[];
-  step: TourStep;
-  stepIndex: number;
-  totalSteps: number;
-  isFirst: boolean;
-  isLast: boolean;
-  start: () => void;
-  stop: () => void;
-  next: () => void;
-  prev: () => void;
-  goTo: (index: number) => void;
-}
+import type { TourController, TourStep } from '../types/tour.types';
 
 /**
- * Состояние ознакомительного тура по разделу «Поставки».
- * Запуск — только вручную (кнопка «?»), автозапуска нет.
+ * Состояние ознакомительного тура по разделу.
+ * Запуск — только вручную (кнопка «Обучение»), автозапуска нет, прогресс не сохраняется.
  * Горячие клавиши: ← / → — шаги, Esc — выход.
  */
-export function useDeliveryTour(steps: TourStep[] = DELIVERY_TOUR_STEPS): UseDeliveryTourResult {
+export function useTour(steps: TourStep[]): TourController {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 

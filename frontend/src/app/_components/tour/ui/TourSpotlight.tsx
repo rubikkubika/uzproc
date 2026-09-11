@@ -1,7 +1,7 @@
 'use client';
 
-import { TOUR_SPOTLIGHT_PADDING } from '../../constants/delivery-tour.constants';
-import type { TourRect } from '../../types/delivery-tour.types';
+import { TOUR_SPOTLIGHT_PADDING } from '../constants/tour.constants';
+import type { TourRect } from '../types/tour.types';
 
 interface TourSpotlightProps {
   rect: TourRect | null;

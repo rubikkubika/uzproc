@@ -70,9 +70,20 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'suppliers', label: 'Поставщики', icon: Building2 },
   ];
 
-  const initiatorItems = [
+  const initiatorItems: SidebarMenuItem[] = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
-    { id: 'public-plan', label: 'План закупок (п)', icon: FileText, isExternal: true, route: '/public-plan' },
+    {
+      id: 'public-plan',
+      label: 'План закупок (п)',
+      icon: FileText,
+      isExternal: true,
+      route: '/public-plan',
+      // Публичный драфт — подпункт публичного плана, как драфт у «Плана закупок»; иконка своя,
+      // чтобы в свёрнутом сайдбаре план и драфт различались
+      subItems: [
+        { id: 'public-plan-draft', label: 'Драфт плана закупок (п)', icon: FilePen, isExternal: true, route: '/public-plan-draft' },
+      ],
+    },
     { id: 'purchase-tracker', label: 'Трекер закупок', icon: Route, isExternal: true, route: '/purchase-tracker' },
   ];
 
@@ -122,6 +133,8 @@ const DEFAULT_SECTIONS_COLLAPSED = {
   directories: true,
   /** Подпункты «Плана закупок» (драфт плана) */
   purchasePlan: false,
+  /** Подпункты «Плана закупок (п)» (публичный драфт плана) */
+  publicPlan: false,
 };
 
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
@@ -165,7 +178,10 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
     }));
   };
 
-  /** Клик по пункту раздела «Для закупщика»: внешние пункты — переход по роуту, остальные — смена вкладки. */
+  /**
+   * Клик по пункту разделов «Для закупщика» и «Для инициатора»:
+   * внешние пункты — переход по роуту, остальные — смена вкладки.
+   */
   const handlePurchaserItemSelect = (item: SidebarMenuItem) => {
     if (item.isExternal) {
       router.push(item.route || '/public-plan');
@@ -372,45 +388,17 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             )}
             {(!isCollapsed && !sectionsCollapsed.initiator) || isCollapsed ? (
               <ul className="space-y-1">
-              {initiatorItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                const isDisabled = item.disabled || false;
-                const isExternal = (item as any).isExternal || false;
-                const route = (item as any).route || '/public-plan';
-
-                return (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => {
-                        if (isDisabled) return;
-                        if (isExternal) {
-                          router.push(route);
-                          setIsMobileMenuOpen(false);
-                        } else {
-                          handleTabChange(item.id);
-                        }
-                      }}
-                      disabled={isDisabled}
-                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
-                      } ${
-                        isActive
-                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
-                          : isDisabled
-                          ? 'text-gray-400 cursor-not-allowed opacity-50'
-                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                      title={isCollapsed ? item.label : undefined}
-                    >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
-                        <Icon className="w-5 h-5" />
-                      </span>
-                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
-                    </button>
-                  </li>
-                );
-              })}
+              {initiatorItems.map((item) => (
+                <SidebarMenuItemButton
+                  key={item.id}
+                  item={item}
+                  activeTab={activeTab}
+                  isCollapsed={isCollapsed}
+                  isSubOpen={!sectionsCollapsed.publicPlan}
+                  onSelect={handlePurchaserItemSelect}
+                  onToggleSub={() => toggleSection('publicPlan')}
+                />
+              ))}
               </ul>
             ) : null}
           </div>

@@ -9,6 +9,10 @@ import PurchaseTrackerGroupedResults from './ui/PurchaseTrackerGroupedResults';
 import PurchaseTrackerResults from './ui/PurchaseTrackerResults';
 import PurchaseTrackerSearch from './ui/PurchaseTrackerSearch';
 import PurchaseTrackerSidebar, { type TrackerTab } from './ui/PurchaseTrackerSidebar';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { PURCHASE_TRACKER_TOUR_STEPS } from './constants/purchase-tracker-tour.constants';
 
 interface PurchaseTrackerProps {
   /** Показывать упрощённые названия ролей вместо официальных */
@@ -25,6 +29,7 @@ interface PurchaseTrackerProps {
 export default function PurchaseTracker({ simpleLanguage = true, showForecast = true }: PurchaseTrackerProps) {
   const { userEmail, userRole, userId, userFullName, userInitiator, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TrackerTab>('mine');
+  const tour = useTour(PURCHASE_TRACKER_TOUR_STEPS);
 
   const {
     query,
@@ -74,7 +79,7 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
 
   // Карточки избранного — в левом блоке под вкладками
   const favoritesPanel = isFavoritesTab ? (
-    <div className="flex flex-col gap-2">
+    <div data-tour="side-list" className="flex flex-col gap-2">
       {favoritesLoading && <div className="px-1 text-xs text-[#98A2B3]">Загрузка…</div>}
       {favoritesError && <div className="px-1 text-xs text-[#B42318]">{favoritesError}</div>}
       {!favoritesLoading && !favoritesError && favoritesEmpty && (
@@ -108,7 +113,7 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
 
   // Карточки «моих» заявок — в левом блоке под вкладками (аналогично избранному)
   const minePanel = isMineTab && userEmail ? (
-    <div className="flex flex-col gap-2">
+    <div data-tour="side-list" className="flex flex-col gap-2">
       {mineLoading && <div className="px-1 text-xs text-[#98A2B3]">Загрузка…</div>}
       {mineError && <div className="px-1 text-xs text-[#B42318]">{mineError}</div>}
       {!mineLoading && !mineError && mineEmpty && (
@@ -164,7 +169,12 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
 
       {/* Основная колонка: поиск (среди всех закупок) + результаты/детали */}
       <div className="min-w-0 flex-1">
-        <PurchaseTrackerSearch query={query} onQueryChange={onQueryChange} onChipClick={onChipClick} />
+        <PurchaseTrackerSearch
+          query={query}
+          onQueryChange={onQueryChange}
+          onChipClick={onChipClick}
+          actions={<TourButton onClick={tour.start} />}
+        />
 
         {loading && <div className="px-8 pt-4 text-sm text-[#98A2B3]">Загрузка…</div>}
         {error && <div className="px-8 pt-4 text-sm text-[#B42318]">{error}</div>}
@@ -174,7 +184,7 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
             // Открыта закупка: если есть результаты поиска — колонкой слева, иначе деталь на всю ширину
             hasSearchResults ? (
               <div className="flex items-start gap-4 px-8 pt-4 pb-5">
-                <div className="w-[340px] flex-none">
+                <div data-tour="results" className="w-[340px] flex-none">
                   <PurchaseTrackerResults
                     results={results}
                     empty={empty}
@@ -216,6 +226,8 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
           )
         )}
       </div>
+
+      <Tour tour={tour} title="Тур по разделу «Трекер закупок»" />
     </div>
   );
 }

@@ -1,9 +1,9 @@
 'use client';
 
-import type { TourBlock } from '../../types/delivery-tour.types';
+import type { TourBlock } from '../types/tour.types';
 
 interface TourStepBodyProps {
-  body: TourBlock[];
+  body: readonly TourBlock[];
 }
 
 /** Описание шага: абзацы, списки «термин — пояснение» и выделенное примечание. */

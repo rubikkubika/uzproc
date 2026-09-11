@@ -6,9 +6,9 @@ import {
   TOUR_NAV_INSET,
   TOUR_POPOVER_FALLBACK_HEIGHT,
   TOUR_POPOVER_WIDTH,
-} from '../../constants/delivery-tour.constants';
-import type { TourRect, TourStep } from '../../types/delivery-tour.types';
-import { computePopoverPosition } from '../../utils/tour.utils';
+} from '../constants/tour.constants';
+import type { TourRect, TourStep } from '../types/tour.types';
+import { computePopoverPosition } from '../utils/tour.utils';
 import TourStepBody from './TourStepBody';
 
 interface TourPopoverProps {

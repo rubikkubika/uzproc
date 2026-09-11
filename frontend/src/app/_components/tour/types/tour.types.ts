@@ -41,3 +41,20 @@ export interface TourPopoverPosition {
   top: number;
   left: number;
 }
+
+/** Состояние и управление туром (результат useTour). */
+export interface TourController {
+  active: boolean;
+  /** Полный список шагов — для оглавления тура. */
+  steps: TourStep[];
+  step: TourStep;
+  stepIndex: number;
+  totalSteps: number;
+  isFirst: boolean;
+  isLast: boolean;
+  start: () => void;
+  stop: () => void;
+  next: () => void;
+  prev: () => void;
+  goTo: (index: number) => void;
+}

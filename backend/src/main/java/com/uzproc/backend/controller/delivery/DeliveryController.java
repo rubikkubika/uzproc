@@ -222,6 +222,25 @@ public class DeliveryController {
         return ResponseEntity.ok(deliveryService.updatePlannedDeliveryDate(id, date));
     }
 
+    /**
+     * Inline-обновление фактической даты поставки (ISO date, пусто — очистить).
+     * С датой поставка становится «Поставлено», без даты поставленная снова «Ожидает поставку».
+     */
+    @PatchMapping("/{id}/actual-delivery-date")
+    public ResponseEntity<DeliveryDto> updateActualDeliveryDate(@PathVariable Long id,
+                                                                @RequestBody Map<String, String> body) {
+        String date = body != null ? body.get("actualDeliveryDate") : null;
+        return ResponseEntity.ok(deliveryService.updateActualDeliveryDate(id, date));
+    }
+
+    /** Inline-обновление даты ЭСФ (ISO date, пусто — очистить). */
+    @PatchMapping("/{id}/esf-date")
+    public ResponseEntity<DeliveryDto> updateEsfDate(@PathVariable Long id,
+                                                     @RequestBody Map<String, String> body) {
+        String date = body != null ? body.get("esfDate") : null;
+        return ResponseEntity.ok(deliveryService.updateEsfDate(id, date));
+    }
+
     /** Inline-обновление статуса поставки (Ожидает поставку / Поставлено / Просрочено).
      *  При «Поставлено» в теле обязателен actualDeliveryDate (ISO-дата). */
     @PatchMapping("/{id}/shipment-status")

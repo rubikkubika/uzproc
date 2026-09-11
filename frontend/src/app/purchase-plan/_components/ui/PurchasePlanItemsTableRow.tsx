@@ -7,6 +7,8 @@ import GanttChart from '../GanttChart';
 import PurchasePlanDraftBudgetCell from './PurchasePlanDraftBudgetCell';
 import PurchasePlanDraftComplexityCell from './PurchasePlanDraftComplexityCell';
 import PurchasePlanExcludeFromPlanningButton from './PurchasePlanExcludeFromPlanningButton';
+import PurchasePlanPurchaserCheckedButton from './PurchasePlanPurchaserCheckedButton';
+import { formatAuditInfo } from '../utils/audit.utils';
 import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { calculateNewContractDate } from '../utils/date.utils';
 
@@ -73,7 +75,13 @@ interface PurchasePlanItemsTableRowProps {
   onComplexityUpdate?: (itemId: number, value: string) => void;
   /** «Глазик» у позиции драфта: исключить из планирования / вернуть в план */
   onExcludeFromPlanningToggle?: (itemId: number, excluded: boolean) => void;
+  /** Галочка «Проверено закупщиком» у позиции драфта: отметить / снять отметку */
+  onPurchaserCheckedToggle?: (itemId: number, checked: boolean) => void;
+  /** Текущий пользователь — закупщик или администратор (может ставить «Проверено закупщиком») */
+  canCheckPurchaser?: boolean;
   holidayDateKeys?: Set<string>;
+  /** Первая строка таблицы — к ней и к её диаграмме Ганта привязаны шаги ознакомительного тура */
+  isFirstRow?: boolean;
 }
 
 /**
@@ -134,7 +142,10 @@ export default function PurchasePlanItemsTableRow({
   setEditingComplexity,
   onComplexityUpdate,
   onExcludeFromPlanningToggle,
+  onPurchaserCheckedToggle,
+  canCheckPurchaser = false,
   holidayDateKeys,
+  isFirstRow = false,
 }: PurchasePlanItemsTableRowProps) {
   const isInactive = item.status === 'Исключена';
   const hasPurchaseRequest = item.purchaseRequestId !== null && item.purchaseRequestId !== undefined;
@@ -161,7 +172,27 @@ export default function PurchasePlanItemsTableRow({
               <PurchasePlanExcludeFromPlanningButton
                 excluded={isInactive}
                 canEdit={isDraft && canEdit && !isViewingArchiveVersion && !!onExcludeFromPlanningToggle}
+                auditInfo={formatAuditInfo(item.excludedFromPlanningBy, item.excludedFromPlanningAt)}
                 onToggle={() => onExcludeFromPlanningToggle?.(item.id, !isInactive)}
+              />
+            </div>
+          </td>
+        );
+
+      case 'purchaserChecked':
+        // Галочка «Проверено закупщиком» (только драфт): ставят и снимают закупщики и администраторы
+        return (
+          <td
+            key={columnKey}
+            className="px-0 py-0 border-r border-gray-300"
+            style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
+          >
+            <div className="flex items-center justify-center">
+              <PurchasePlanPurchaserCheckedButton
+                checked={item.purchaserChecked === true}
+                canEdit={isDraft && canCheckPurchaser && !isViewingArchiveVersion && !!onPurchaserCheckedToggle}
+                auditInfo={formatAuditInfo(item.purchaserCheckedBy, item.purchaserCheckedAt)}
+                onToggle={() => onPurchaserCheckedToggle?.(item.id, item.purchaserChecked !== true)}
               />
             </div>
           </td>
@@ -417,6 +448,7 @@ export default function PurchasePlanItemsTableRow({
             className="px-2 py-2 border-r border-gray-300"
             style={{ width: '350px', minWidth: '350px', fontSize: '13.44px', contain: 'layout style paint' }}
             data-gantt-chart="true"
+            data-tour={isFirstRow ? 'first-row-gantt' : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative w-full overflow-hidden" style={{ contain: 'layout style paint' }}>
@@ -1026,7 +1058,16 @@ export default function PurchasePlanItemsTableRow({
   };
 
   return (
-    <tr className={`${isReadOnly ? 'bg-gray-100 opacity-75' : 'hover:bg-gray-50'}`}>
+    <tr
+      data-tour={isFirstRow ? 'first-row' : undefined}
+      className={
+        isReadOnly
+          ? 'bg-gray-100 opacity-75'
+          : isDraft && item.purchaserChecked === true
+            ? 'bg-green-50 hover:bg-green-100' // драфт: позиция проверена закупщиком
+            : 'hover:bg-gray-50'
+      }
+    >
       {columnOrder.map(col => renderCell(col))}
     </tr>
   );

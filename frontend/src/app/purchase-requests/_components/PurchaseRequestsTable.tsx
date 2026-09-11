@@ -48,6 +48,10 @@ import { useFilterHandlers } from './hooks/useFilterHandlers';
 import { useExcludeFromInWork } from './hooks/useExcludeFromInWork';
 import { useKindTabFilter } from './hooks/useKindTabFilter';
 import { useStatusGroupsByKind } from './hooks/useStatusGroupsByKind';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { PURCHASE_REQUESTS_TOUR_STEPS } from './constants/purchase-requests-tour.constants';
 
 export default function PurchaseRequestsTable() {
   // Состояние вкладки «Закупки/Заказы» — поднято сюда, чтобы передавать в запрос данных и учитывать при фильтре статусов
@@ -558,6 +562,9 @@ export default function PurchaseRequestsTable() {
     }
   }, [activeTab, statusGroupsByKind, uniqueValues.statusGroup, statusFilter, setStatusFilter]);
 
+  // Ознакомительный тур по разделу (запуск кнопкой «Обучение»)
+  const tour = useTour(PURCHASE_REQUESTS_TOUR_STEPS);
+
   // Используем хук для excludeFromInWork
   const { updateExcludeFromInWork } = useExcludeFromInWork({
     userRole,
@@ -948,7 +955,7 @@ export default function PurchaseRequestsTable() {
       {/* Сводная таблица по закупщикам */}
       <div className="flex items-start gap-4 px-3 py-2 border-b border-gray-200 flex-shrink-0 pr-52">
         {/* Сводная таблица по закупщикам - слева */}
-        <div className="flex-1">
+        <div data-tour="purchaser-summary" className="flex-1">
           <PurchaseRequestsSummaryTable
             purchaserSummary={purchaserSummary}
             completedPurchaserSummary={completedPurchaserSummary}
@@ -989,6 +996,7 @@ export default function PurchaseRequestsTable() {
         <PurchaseRequestsKindTabs
           kindTab={kindTab}
           onKindTabChange={setKindTab}
+          actions={<TourButton onClick={tour.start} />}
         />
 
         {/* Вкладки статусов */}
@@ -1181,6 +1189,8 @@ export default function PurchaseRequestsTable() {
           );
         }}
       />
+
+      <Tour tour={tour} title="Тур по разделу «Заявки на закупку»" />
     </div>
   );
 }

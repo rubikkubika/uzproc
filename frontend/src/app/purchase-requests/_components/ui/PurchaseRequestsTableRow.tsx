@@ -65,7 +65,8 @@ export default function PurchaseRequestsTableRow({
 
   return (
     <tr 
-      key={request.guid || `${request.id}-${index}`} 
+      key={request.guid || `${request.id}-${index}`}
+      data-tour={index === 0 ? 'first-row' : undefined}
       className="hover:bg-gray-50 cursor-pointer leading-tight"
       onClick={(e) => {
         const target = e.target as HTMLElement;

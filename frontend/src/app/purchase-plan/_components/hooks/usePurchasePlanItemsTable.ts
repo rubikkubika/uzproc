@@ -28,6 +28,8 @@ const SIMPLE_TEXT_FILTER_PARAMS = [
   'currentContractBalance',
   'createdAt',
   'updatedAt',
+  // Не текстовый, но передаётся так же: 'true' / 'false' (фильтр символами у галочки «Проверено закупщиком»)
+  'purchaserChecked',
 ];
 
 export const usePurchasePlanItemsTable = () => {
@@ -1602,6 +1604,12 @@ export const usePurchasePlanItemsTable = () => {
   const categoryFilterStr = useMemo(() => Array.from(filtersHook.categoryFilter).sort().join(','), [filtersHook.categoryFilter]);
   const statusFilterStr = useMemo(() => Array.from(filtersHook.statusFilter).sort().join(','), [filtersHook.statusFilter]);
   const selectedMonthsStr = useMemo(() => Array.from(selectedMonths).sort().join(','), [selectedMonths]);
+  // Значения фильтров из SIMPLE_TEXT_FILTER_PARAMS (текстовые колонки и «Проверено закупщиком») одной строкой:
+  // без неё смена этих фильтров не перезапускала запросы — эффекты следят только за перечисленными полями
+  const simpleTextFiltersStr = useMemo(
+    () => SIMPLE_TEXT_FILTER_PARAMS.map(field => filtersHook.filters[field] || '').join(''),
+    [filtersHook.filters]
+  );
 
   // Эффект для применения фильтров при изменении страницы, сортировки, месяцев для архивных версий
   useEffect(() => {
@@ -1675,6 +1683,7 @@ export const usePurchasePlanItemsTable = () => {
     filtersHook.filters.purchaseRequestId,
     filtersHook.filters.budgetAmount,
     filtersHook.filters.budgetAmountOperator,
+    simpleTextFiltersStr,
     filtersHook.cfoFilter.size,
     cfoFilterStr,
     filtersHook.companyFilter.size,

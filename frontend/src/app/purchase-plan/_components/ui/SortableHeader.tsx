@@ -28,6 +28,8 @@ interface SortableHeaderProps {
   isDragOver?: boolean;
   // Resize
   onResizeStart?: (e: React.MouseEvent, columnKey: string) => void;
+  /** Значение атрибута data-tour заголовка — привязка шага ознакомительного тура */
+  tourTarget?: string;
 }
 
 /**
@@ -56,6 +58,7 @@ export default function SortableHeader({
   isDragged = false,
   isDragOver = false,
   onResizeStart,
+  tourTarget,
 }: SortableHeaderProps) {
   const fieldKey = field || '';
   const isSorted = sortField === field;
@@ -74,6 +77,7 @@ export default function SortableHeader({
       className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${columnKey ? 'cursor-move' : ''} ${isDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
       style={style}
       data-column={columnKey || undefined}
+      data-tour={tourTarget}
     >
       <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
         {/* Верхний уровень - фильтр */}

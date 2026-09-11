@@ -29,7 +29,7 @@ export default function PurchaseRequestsTableTabs({
   ];
 
   return (
-    <div className="sticky top-[30px] left-0 right-0 z-30 flex gap-0.5 pt-0.5 pb-0.5 bg-white shadow-sm" style={{ minHeight: '30px', width: '100%', backgroundColor: 'white' }}>
+    <div data-tour="status-tabs" className="sticky top-[30px] left-0 right-0 z-30 flex gap-0.5 pt-0.5 pb-0.5 bg-white shadow-sm" style={{ minHeight: '30px', width: '100%', backgroundColor: 'white' }}>
       {tabs.map((tab) => {
         // Показываем вкладку только если есть записи или количество еще не загружено
         const count = tabCounts[tab.key];

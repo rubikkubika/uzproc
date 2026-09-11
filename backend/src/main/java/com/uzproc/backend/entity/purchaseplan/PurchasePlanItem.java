@@ -133,6 +133,28 @@ public class PurchasePlanItem {
     @Column(name = "draft_cleared", nullable = false)
     private Boolean draftCleared = Boolean.FALSE;
 
+    /** Позиция драфта проверена закупщиком (ставят и снимают закупщики и администраторы) */
+    @Column(name = "purchaser_checked", nullable = false)
+    private Boolean purchaserChecked = Boolean.FALSE;
+
+    /** Когда последний раз ставили или снимали отметку «Проверено закупщиком» */
+    @Column(name = "purchaser_checked_at")
+    private LocalDateTime purchaserCheckedAt;
+
+    /** Кто последний раз ставил или снимал отметку «Проверено закупщиком» */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchaser_checked_by_id")
+    private User purchaserCheckedBy;
+
+    /** Когда последний раз исключали позицию из планирования («глазик») или возвращали в план */
+    @Column(name = "excluded_from_planning_at")
+    private LocalDateTime excludedFromPlanningAt;
+
+    /** Кто последний раз исключал позицию из планирования («глазик») или возвращал в план */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "excluded_from_planning_by_id")
+    private User excludedFromPlanningBy;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -440,6 +462,46 @@ public class PurchasePlanItem {
 
     public void setDraftCleared(Boolean draftCleared) {
         this.draftCleared = draftCleared != null ? draftCleared : Boolean.FALSE;
+    }
+
+    public Boolean getPurchaserChecked() {
+        return purchaserChecked;
+    }
+
+    public void setPurchaserChecked(Boolean purchaserChecked) {
+        this.purchaserChecked = purchaserChecked != null ? purchaserChecked : Boolean.FALSE;
+    }
+
+    public LocalDateTime getPurchaserCheckedAt() {
+        return purchaserCheckedAt;
+    }
+
+    public void setPurchaserCheckedAt(LocalDateTime purchaserCheckedAt) {
+        this.purchaserCheckedAt = purchaserCheckedAt;
+    }
+
+    public User getPurchaserCheckedBy() {
+        return purchaserCheckedBy;
+    }
+
+    public void setPurchaserCheckedBy(User purchaserCheckedBy) {
+        this.purchaserCheckedBy = purchaserCheckedBy;
+    }
+
+    public LocalDateTime getExcludedFromPlanningAt() {
+        return excludedFromPlanningAt;
+    }
+
+    public void setExcludedFromPlanningAt(LocalDateTime excludedFromPlanningAt) {
+        this.excludedFromPlanningAt = excludedFromPlanningAt;
+    }
+
+    public User getExcludedFromPlanningBy() {
+        return excludedFromPlanningBy;
+    }
+
+    public void setExcludedFromPlanningBy(User excludedFromPlanningBy) {
+        this.excludedFromPlanningBy = excludedFromPlanningBy;
     }
 }
 

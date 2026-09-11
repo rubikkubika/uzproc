@@ -740,7 +740,13 @@ export const usePurchasePlanItemsEditing = (
         setAllItems(prev => {
           const updated = prev.map(item =>
             item.id === itemId
-              ? { ...item, status: updatedItem.status, updatedAt: updatedItem.updatedAt }
+              ? {
+                  ...item,
+                  status: updatedItem.status,
+                  excludedFromPlanningAt: updatedItem.excludedFromPlanningAt,
+                  excludedFromPlanningBy: updatedItem.excludedFromPlanningBy,
+                  updatedAt: updatedItem.updatedAt,
+                }
               : item
           );
           if (data) {
@@ -753,6 +759,43 @@ export const usePurchasePlanItemsEditing = (
       }
     } catch {
       alert('Ошибка при исключении из планирования');
+    }
+  };
+
+  // Галочка «Проверено закупщиком» у позиции драфта: ставят и снимают закупщики и администраторы,
+  // бэкенд запоминает, кто и когда нажал
+  const handlePurchaserCheckedToggle = async (itemId: number, checked: boolean) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/purchaser-checked`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchaserChecked: checked }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setAllItems(prev => {
+          const updated = prev.map(item =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  purchaserChecked: updatedItem.purchaserChecked,
+                  purchaserCheckedAt: updatedItem.purchaserCheckedAt,
+                  purchaserCheckedBy: updatedItem.purchaserCheckedBy,
+                  updatedAt: updatedItem.updatedAt,
+                }
+              : item
+          );
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
+      } else {
+        alert('Ошибка при отметке «Проверено закупщиком»: ' + (await response.text()));
+      }
+    } catch {
+      alert('Ошибка при отметке «Проверено закупщиком»');
     }
   };
 
@@ -1002,6 +1045,7 @@ export const usePurchasePlanItemsEditing = (
     setEditingComplexity,
     handleComplexityUpdate,
     handleExcludeFromPlanningToggle,
+    handlePurchaserCheckedToggle,
     setEditingPurchaseSubject,
     purchaseSubjectInputRef,
     editingPurchaser,

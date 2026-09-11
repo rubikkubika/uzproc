@@ -1447,6 +1447,69 @@ public class DeliveryService {
     }
 
     /**
+     * Inline-обновление фактической даты поставки (ISO date или пусто для очистки).
+     * Есть факт — поставка «Поставлено» (то же правило, что при загрузке ручного отчёта);
+     * факт очищен у поставленной поставки — она снова «Ожидает поставку», потому что «Поставлено»
+     * без фактической даты не бывает. Статус оплаты пересчитывается, как при смене статуса отгрузки.
+     * При загрузке ручного отчёта заполненная в нём дата заменит введённую.
+     */
+    @Transactional
+    public DeliveryDto updateActualDeliveryDate(Long id, String isoDate) {
+        Delivery delivery = deliveryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
+        if (isoDate == null || isoDate.trim().isEmpty()) {
+            delivery.setActualDeliveryDate(null);
+            if (delivery.getShipmentStatus() == ShipmentStatus.DELIVERED) {
+                delivery.setShipmentStatus(ShipmentStatus.EXPECTED);
+            }
+        } else {
+            delivery.setActualDeliveryDate(parseIsoDate(isoDate, "Некорректная фактическая дата поставки: "));
+            delivery.setShipmentStatus(ShipmentStatus.DELIVERED);
+        }
+        recalculatePaymentStatusAfterShipmentChange(delivery);
+        Delivery saved = deliveryRepository.save(delivery);
+        logger.info("Updated delivery id={} actualDeliveryDate={} shipmentStatus={}",
+                saved.getId(), saved.getActualDeliveryDate(), saved.getShipmentStatus());
+        return toDto(saved);
+    }
+
+    /**
+     * Inline-обновление даты ЭСФ (ISO date или пусто для очистки).
+     * При загрузке ручного отчёта заполненная в нём дата заменит введённую.
+     */
+    @Transactional
+    public DeliveryDto updateEsfDate(Long id, String isoDate) {
+        Delivery delivery = deliveryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
+        delivery.setEsfDate(isoDate == null || isoDate.trim().isEmpty()
+                ? null
+                : parseIsoDate(isoDate, "Некорректная дата ЭСФ: "));
+        Delivery saved = deliveryRepository.save(delivery);
+        logger.info("Updated delivery id={} esfDate={}", saved.getId(), saved.getEsfDate());
+        return toDto(saved);
+    }
+
+    private static LocalDate parseIsoDate(String isoDate, String errorPrefix) {
+        try {
+            return LocalDate.parse(isoDate.trim());
+        } catch (Exception ex) {
+            throw new IllegalArgumentException(errorPrefix + isoDate);
+        }
+    }
+
+    /**
+     * Статус оплаты зависит от статуса отгрузки (постоплата + «Поставлено» без оплаты
+     * = «Ожидает доплаты») — пересчитываем его по оплатам и уточняем.
+     * Без выбранной схемы не трогаем: resolveInitialStatus вернул бы null и затёр «Проект».
+     */
+    private void recalculatePaymentStatusAfterShipmentChange(Delivery delivery) {
+        if (delivery.getPaymentScheme() != null) {
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
+            refinePostpayAwaitingBalance(delivery);
+        }
+    }
+
+    /**
      * Inline-обновление статуса поставки (Ожидает поставку / Поставлено / Просрочено).
      * Принимает name() или displayName. При статусе «Поставлено» сохраняет фактическую дату
      * поставки (actualDeliveryDateIso), при остальных статусах фактическая дата очищается.
@@ -1472,13 +1535,7 @@ public class DeliveryService {
         } else {
             delivery.setActualDeliveryDate(null);
         }
-        // Статус оплаты зависит от статуса отгрузки (постоплата + «Поставлено» без оплаты
-        // = «Ожидает доплаты») — пересчитываем его по оплатам и уточняем.
-        // Без выбранной схемы не трогаем: resolveInitialStatus вернул бы null и затёр «Проект».
-        if (delivery.getPaymentScheme() != null) {
-            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
-            refinePostpayAwaitingBalance(delivery);
-        }
+        recalculatePaymentStatusAfterShipmentChange(delivery);
         Delivery saved = deliveryRepository.save(delivery);
         logger.info("Updated delivery id={} shipmentStatus={} actualDeliveryDate={}",
                 saved.getId(), parsed, saved.getActualDeliveryDate());

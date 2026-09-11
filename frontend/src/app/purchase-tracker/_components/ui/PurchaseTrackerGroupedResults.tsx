@@ -191,11 +191,11 @@ export default function PurchaseTrackerGroupedResults({
   const { inWork, signed, archived } = groupResultsByStatus(results);
 
   if (empty) {
-    return <div className="px-8 pt-4 pb-5 text-sm text-[#98A2B3]">{emptyText}</div>;
+    return <div data-tour="results" className="px-8 pt-4 pb-5 text-sm text-[#98A2B3]">{emptyText}</div>;
   }
 
   return (
-    <div className="flex flex-col gap-12 px-5 pt-4 pb-5">
+    <div data-tour="results" className="flex flex-col gap-12 px-5 pt-4 pb-5">
       <ResultBlock title="В работе" tone={TONE_IN_WORK} items={inWork} handlers={handlers} />
       <ResultBlock title="Подписано" tone={TONE_SIGNED} items={signed} handlers={handlers} />
       <ResultBlock title="Архив" tone={TONE_ARCHIVE} items={archived} handlers={handlers} />

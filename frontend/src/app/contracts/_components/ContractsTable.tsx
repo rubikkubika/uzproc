@@ -16,6 +16,10 @@ import ContractRemarksPopup from './ui/ContractRemarksPopup';
 import ContractsTableColgroup from './ui/ContractsTableColgroup';
 import RemarksPanel from './RemarksPanel';
 import { CONTRACTS_COLUMN_WIDTHS, CONTRACTS_NAME_MIN_WIDTH, MONTH_OPTIONS } from './constants/contracts.constants';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { CONTRACTS_TOUR_STEPS } from './constants/contracts-tour.constants';
 
 const ORGANIZATION_OPTIONS = [
   { key: '', label: 'Все' },
@@ -92,6 +96,8 @@ export default function ContractsTable() {
     summaryCurrentYear,
     summaryLoading,
   } = useContractsTable();
+
+  const tour = useTour(CONTRACTS_TOUR_STEPS);
 
   const filteredItems = filters.expiryStatusFilter
     ? allItems.filter(c => getExpiryStatus(c.plannedDeliveryEndDate, c.status) === filters.expiryStatusFilter)
@@ -314,7 +320,7 @@ export default function ContractsTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Сводная таблица */}
-      <div className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+      <div data-tour="summary" className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
         <ContractsSummaryTable
           segmentsData={segmentsData}
           currentYear={summaryCurrentYear}
@@ -334,6 +340,7 @@ export default function ContractsTable() {
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            data-tour="reset-filters"
             onClick={handleResetFilters}
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
@@ -349,7 +356,7 @@ export default function ContractsTable() {
             Колонки
           </button>
 
-          <div className="flex items-center gap-2">
+          <div data-tour="year-filter" className="flex items-center gap-2">
             <span className="text-xs text-gray-700 font-medium whitespace-nowrap">Год:</span>
             <button
               onClick={() => setSelectedYear(null)}
@@ -368,7 +375,7 @@ export default function ContractsTable() {
             ))}
           </div>
         </div>
-        <div className="text-xs text-gray-700 flex-shrink-0">
+        <div data-tour="records-counter" className="text-xs text-gray-700 flex-shrink-0">
           {filters.expiryStatusFilter ? (
             // «Статус срока» считается на клиенте по уже загруженным строкам, поэтому показываем
             // отфильтрованное из загруженного, а не из общего количества на бэкенде
@@ -383,7 +390,7 @@ export default function ContractsTable() {
       </div>
 
       {/* Фильтр по организации заказчика */}
-      <div className="px-3 py-1 border-b border-gray-200 flex items-center gap-2 bg-white flex-shrink-0">
+      <div data-tour="organization-filter" className="px-3 py-1 border-b border-gray-200 flex items-center gap-2 bg-white flex-shrink-0">
         <span className="text-xs text-gray-500 whitespace-nowrap">Организация:</span>
         {ORGANIZATION_OPTIONS.map(opt => (
           <button
@@ -432,6 +439,7 @@ export default function ContractsTable() {
         showRemarks={showRemarks}
         onRemarksToggle={() => setShowRemarks(v => !v)}
         tabCounts={tabCounts}
+        actions={<TourButton onClick={tour.start} />}
       />
 
       {showRemarks ? (
@@ -442,10 +450,10 @@ export default function ContractsTable() {
             появляется горизонтальная прокрутка контейнера; на широких таблица тянется на всю ширину */}
         <table className="w-full border-collapse table-fixed" style={{ minWidth: `${tableMinWidth}px` }}>
           <ContractsTableColgroup withPreparedBy={isTabWithPreparedBy} />
-          <thead className="bg-gray-50 sticky top-0 z-10">
+          <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {/* Глазик */}
-              <th className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300">
+              <th data-tour="col-visibility" className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div className="w-full" />,
                   <Eye className="w-3 h-3 text-gray-400 mx-auto" />
@@ -583,7 +591,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Форма документа */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
+              <th data-tour="col-documentForm" className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <select
                     value={filters.localFilters.documentForm ?? ''}
@@ -614,7 +622,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Срок поставки (план) */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
+              <th data-tour="col-plannedDeliveryEndDate" className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div className="flex items-center gap-1 w-full" style={{ minWidth: 0 }}>
                     <select
@@ -638,7 +646,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Статус */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
+              <th data-tour="col-status" className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <select
                     value={filters.statusFilter}
@@ -682,7 +690,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Трэк */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
+              <th data-tour="col-track" className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div className="w-full" />,
                   <span>Трэк</span>
@@ -696,11 +704,12 @@ export default function ContractsTable() {
                 <td colSpan={totalColumns} className="px-6 py-8 text-center text-gray-500">Загрузка...</td>
               </tr>
             ) : filteredItems.length > 0 ? (
-              filteredItems.map((contract) => {
+              filteredItems.map((contract, index) => {
                 const isHidden = contract.excludeFromInWork === true;
                 return (
                   <tr
                     key={contract.id}
+                    data-tour={index === 0 ? 'first-row' : undefined}
                     className={`cursor-pointer leading-tight ${isHidden ? 'bg-gray-100 opacity-60 hover:opacity-80' : 'hover:bg-gray-50'}`}
                     onClick={(e) => handleRowClick(contract.id, e)}
                     onAuxClick={(e) => handleRowAuxClick(contract.id, e)}
@@ -833,6 +842,8 @@ export default function ContractsTable() {
         error={remarksPopup.error}
         onClose={remarksPopup.close}
       />
+
+      <Tour tour={tour} title="Тур по разделу «Договоры»" />
     </div>
   );
 }

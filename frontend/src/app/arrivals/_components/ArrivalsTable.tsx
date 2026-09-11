@@ -2,6 +2,10 @@
 
 import { ArrowUp, ArrowDown, ArrowUpDown, Settings } from 'lucide-react';
 import { useArrivalsTable } from './hooks/useArrivalsTable';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { ARRIVALS_TOUR_STEPS } from './constants/arrivals-tour.constants';
 
 export default function ArrivalsTable() {
   const {
@@ -23,6 +27,8 @@ export default function ArrivalsTable() {
     handleShowNoDate,
     handleShowAll,
   } = useArrivalsTable();
+
+  const tour = useTour(ARRIVALS_TOUR_STEPS);
 
   if (error) {
     return (
@@ -104,6 +110,7 @@ export default function ArrivalsTable() {
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            data-tour="reset-filters"
             onClick={handleResetFilters}
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
@@ -111,7 +118,7 @@ export default function ArrivalsTable() {
           </button>
 
           {/* Кнопки фильтра по году "Дата вх." */}
-          <div className="flex items-center gap-1">
+          <div data-tour="date-filter" className="flex items-center gap-1">
             <span className="text-xs text-gray-500 mr-1">Дата вх.:</span>
             <button
               onClick={handleShowAll}
@@ -148,18 +155,22 @@ export default function ArrivalsTable() {
             </button>
           </div>
         </div>
-        <div className="text-xs text-gray-700 flex-shrink-0">
-          Показано {allItems.length} из {data?.totalElements ?? 0} записей
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div data-tour="records-counter" className="text-xs text-gray-700 flex-shrink-0">
+            Показано {allItems.length} из {data?.totalElements ?? 0} записей
+          </div>
+          <TourButton onClick={tour.start} />
         </div>
       </div>
 
       <div className="flex-1 min-w-0 overflow-auto relative">
         <table className="w-full max-w-full border-collapse table-fixed">
-          <thead className="bg-gray-50 sticky top-0 z-10">
+          <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.field}
+                  data-tour={`col-${col.field}`}
                   className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                   style={{ width: col.width }}
                 >
@@ -245,6 +256,8 @@ export default function ArrivalsTable() {
         )}
         <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
+
+      <Tour tour={tour} title="Тур по разделу «Поступления»" />
     </div>
   );
 }

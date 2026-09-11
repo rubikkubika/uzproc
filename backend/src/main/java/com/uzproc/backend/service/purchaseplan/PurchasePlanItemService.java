@@ -17,6 +17,7 @@ import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemSupplierReposi
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
+import com.uzproc.backend.service.user.CurrentUserService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
@@ -1128,6 +1129,11 @@ public class PurchasePlanItemService {
         dto.setCurrentContractName(entity.getCurrentContractName());
         dto.setIsDraft(entity.getIsDraft());
         dto.setSourceContractId(entity.getSourceContractId());
+        dto.setPurchaserChecked(entity.getPurchaserChecked());
+        dto.setPurchaserCheckedAt(entity.getPurchaserCheckedAt());
+        dto.setPurchaserCheckedBy(CurrentUserService.displayName(entity.getPurchaserCheckedBy()));
+        dto.setExcludedFromPlanningAt(entity.getExcludedFromPlanningAt());
+        dto.setExcludedFromPlanningBy(CurrentUserService.displayName(entity.getExcludedFromPlanningBy()));
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
@@ -1764,6 +1770,14 @@ public class PurchasePlanItemService {
         added += addTextPredicate(root, cb, predicates, "currentContractBalance", filters.getCurrentContractBalance());
         added += addTextPredicate(root, cb, predicates, "createdAt", filters.getCreatedAt());
         added += addTextPredicate(root, cb, predicates, "updatedAt", filters.getUpdatedAt());
+        // «Проверено закупщиком»: «true» — только проверенные, «false» — только непроверенные
+        if ("true".equalsIgnoreCase(filters.getPurchaserChecked())) {
+            predicates.add(cb.isTrue(root.get("purchaserChecked")));
+            added++;
+        } else if ("false".equalsIgnoreCase(filters.getPurchaserChecked())) {
+            predicates.add(cb.isFalse(root.get("purchaserChecked")));
+            added++;
+        }
         return added;
     }
 

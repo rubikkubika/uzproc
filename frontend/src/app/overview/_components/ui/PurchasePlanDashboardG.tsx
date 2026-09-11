@@ -57,7 +57,7 @@ export function PurchasePlanDashboardG({
   return (
     <div className="flex flex-col gap-3">
       {/* Topbar */}
-      <div className="bg-white rounded-xl shadow px-4 py-2.5 flex items-center gap-3 flex-wrap">
+      <div data-tour="plan-topbar" className="bg-white rounded-xl shadow px-4 py-2.5 flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5">
           <label className="text-xs font-medium text-gray-500 whitespace-nowrap">Год:</label>
           <select

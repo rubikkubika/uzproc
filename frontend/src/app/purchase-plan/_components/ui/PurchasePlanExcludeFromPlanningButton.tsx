@@ -8,6 +8,8 @@ interface PurchasePlanExcludeFromPlanningButtonProps {
   excluded: boolean;
   /** Нажатие доступно (драфт, есть права, не архивная версия) */
   canEdit: boolean;
+  /** Кто и когда последний раз исключал позицию из планирования или возвращал в план */
+  auditInfo?: string | null;
   onToggle: () => void;
 }
 
@@ -18,13 +20,17 @@ interface PurchasePlanExcludeFromPlanningButtonProps {
 export default function PurchasePlanExcludeFromPlanningButton({
   excluded,
   canEdit,
+  auditInfo = null,
   onToggle,
 }: PurchasePlanExcludeFromPlanningButtonProps) {
-  const title = excluded
+  const stateTitle = excluded
     ? 'Исключена из планирования, договор не попадёт в новые драфты' + (canEdit ? ' (кликните, чтобы вернуть)' : '')
     : canEdit
       ? 'Исключить из планирования: договор не попадёт в новые драфты'
       : 'В планировании';
+  const title = auditInfo
+    ? `${stateTitle}\n${excluded ? 'Исключил' : 'Вернул в план'}: ${auditInfo}`
+    : stateTitle;
 
   return (
     <button

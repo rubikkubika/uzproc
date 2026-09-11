@@ -1,8 +1,8 @@
 'use client';
 
 import { Check } from 'lucide-react';
-import { TOUR_NAV_WIDTH } from '../../constants/delivery-tour.constants';
-import type { TourStep } from '../../types/delivery-tour.types';
+import { TOUR_NAV_WIDTH } from '../constants/tour.constants';
+import type { TourStep } from '../types/tour.types';
 
 interface TourStepsNavProps {
   steps: TourStep[];

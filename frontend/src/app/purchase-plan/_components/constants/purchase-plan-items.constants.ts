@@ -65,7 +65,6 @@ export const ALL_COLUMNS = [
 export const DEFAULT_VISIBLE_COLUMNS = [
   'id',
   'company',
-  'purchaserCompany',
   'purchaseRequestId',
   'cfo',
   'purchaseSubject',
@@ -79,27 +78,46 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'ganttChart',
 ];
 
-// Колонки, недоступные в драфте плана: заявок на закупку в драфте ещё нет,
-// а исполнитель всегда Uzum Market — эти колонки не показываются
-// и отсутствуют в меню выбора колонок
+// Колонки, скрытые в плане закупок: не показываются и отсутствуют в меню выбора колонок
+// (в том числе у пользователей, у которых они были в сохранённых настройках)
+export const PLAN_HIDDEN_COLUMNS: string[] = [
+  'purchaserCompany', // «Исполнитель»
+];
+
+// Колонки, доступные в плане закупок
+export const PLAN_ALL_COLUMNS = ALL_COLUMNS.filter(col => !PLAN_HIDDEN_COLUMNS.includes(col.key));
+
+// Колонки, недоступные в драфте плана: скрытые в плане и заявка на закупку (заявок в драфте ещё нет) —
+// эти колонки не показываются и отсутствуют в меню выбора колонок
 export const DRAFT_HIDDEN_COLUMNS: string[] = [
+  ...PLAN_HIDDEN_COLUMNS,
   'purchaseRequestId',
-  'purchaserCompany',
 ];
 
 // Колонка только драфта: «глазик» исключения позиции (и её договора) из планирования, слева от ID
 export const EXCLUDE_FROM_PLANNING_COLUMN = { key: 'excludeFromPlanning', label: 'Исключение из планирования' } as const;
 
+// Колонка только драфта: галочка «Проверено закупщиком», справа от «глазика»
+export const PURCHASER_CHECKED_COLUMN = { key: 'purchaserChecked', label: 'Проверено закупщиком' } as const;
+
+// Фильтр колонки «Проверено закупщиком» переключается по кругу: все → проверенные → непроверенные → все.
+// Значение уходит на бэкенд параметром purchaserChecked ('' — без фильтра)
+export const PURCHASER_CHECKED_FILTER_CYCLE = ['', 'true', 'false'] as const;
+export type PurchaserCheckedFilterValue = typeof PURCHASER_CHECKED_FILTER_CYCLE[number];
+
 // Колонки, доступные в драфте плана закупок
 export const DRAFT_ALL_COLUMNS = [
   EXCLUDE_FROM_PLANNING_COLUMN,
+  PURCHASER_CHECKED_COLUMN,
   ...ALL_COLUMNS.filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col.key)),
 ];
 
-// Дефолтные видимые колонки драфта: первой — «глазик» исключения из планирования, после предмета закупки
-// дополнительно показываем наименование действующего договора и сложность, колонки из DRAFT_HIDDEN_COLUMNS исключаются
+// Дефолтные видимые колонки драфта: первыми — «глазик» исключения из планирования и галочка «Проверено закупщиком»,
+// после предмета закупки дополнительно показываем наименование действующего договора и сложность,
+// колонки из DRAFT_HIDDEN_COLUMNS исключаются
 export const DRAFT_DEFAULT_VISIBLE_COLUMNS = [
   EXCLUDE_FROM_PLANNING_COLUMN.key,
+  PURCHASER_CHECKED_COLUMN.key,
   ...DEFAULT_VISIBLE_COLUMNS
     .flatMap(col => (col === 'purchaseSubject' ? [col, 'currentContractName', 'complexity'] : [col]))
     .filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col)),
@@ -108,6 +126,7 @@ export const DRAFT_DEFAULT_VISIBLE_COLUMNS = [
 // Дефолтные ширины колонок
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   excludeFromPlanning: 28,
+  purchaserChecked: 28,
   id: 80,
   company: 179,
   guid: 256,

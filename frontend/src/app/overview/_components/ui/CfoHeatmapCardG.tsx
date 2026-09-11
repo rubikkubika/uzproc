@@ -55,7 +55,7 @@ export function CfoHeatmapCardG({ rows }: Props) {
   }, {});
 
   return (
-    <div className="bg-white rounded-xl shadow p-4">
+    <div data-tour="plan-cfo-heatmap" className="bg-white rounded-xl shadow p-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">Heatmap · ЦФО × Метрики</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">

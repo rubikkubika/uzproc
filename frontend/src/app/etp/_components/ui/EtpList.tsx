@@ -15,6 +15,8 @@ interface Props {
   onStatusFilter: (v: string) => void;
   selectedGuid: string | null;
   onSelect: (guid: string) => void;
+  /** Проставлять атрибуты data-tour для тура (только у одного экземпляра списка, чтобы цели не дублировались). */
+  tourTargets?: boolean;
 }
 
 export default function EtpList({
@@ -27,12 +29,14 @@ export default function EtpList({
   onStatusFilter,
   selectedGuid,
   onSelect,
+  tourTargets = false,
 }: Props) {
+  const tour = (key: string) => (tourTargets ? key : undefined);
   return (
     <div className="flex flex-col h-full border-r border-gray-200 bg-white">
       {/* Поиск и фильтр */}
       <div className="p-3 border-b border-gray-200 space-y-2 flex-shrink-0">
-        <div className="relative">
+        <div data-tour={tour('etp-search')} className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -42,7 +46,7 @@ export default function EtpList({
             className="w-full pl-8 pr-2 py-1.5 text-sm border border-gray-300 rounded text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
-        <div className="flex flex-wrap gap-1">
+        <div data-tour={tour('etp-status-filter')} className="flex flex-wrap gap-1">
           <FilterChip label="Все" count={total} active={statusFilter === ''} onClick={() => onStatusFilter('')} />
           {ETP_STATUS_ORDER.filter((s) => byStatus[s]).map((s) => (
             <FilterChip
@@ -57,7 +61,7 @@ export default function EtpList({
       </div>
 
       {/* Список */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div data-tour={tour('etp-list')} className="flex-1 overflow-y-auto min-h-0">
         {procedures.length === 0 ? (
           <div className="p-4 text-sm text-gray-500">Ничего не найдено</div>
         ) : (

@@ -168,6 +168,13 @@ export const usePurchasePlanItemsFilters = (
     setLocalFilters(prev => ({ ...prev, [fieldKey]: value }));
   }, []);
 
+  // Фильтр символами у галочки «Проверено закупщиком» — клик, а не ввод текста, поэтому применяется сразу, без debounce
+  const handlePurchaserCheckedFilterChange = useCallback((value: string) => {
+    setFilters(prev => ({ ...prev, purchaserChecked: value }));
+    setLocalFilters(prev => ({ ...prev, purchaserChecked: value }));
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
   const handleFocusForHeader = useCallback((fieldKey: string) => setFocusedField(fieldKey), []);
   
   const handleBlurForHeader = useCallback((e: React.FocusEvent<HTMLInputElement>, fieldKey: string) => {
@@ -382,6 +389,7 @@ export const usePurchasePlanItemsFilters = (
 
   return {
     filters, setFilters, localFilters, setLocalFilters, focusedField, setFocusedField,
+    handlePurchaserCheckedFilterChange,
     cfoFilter, setCfoFilter, companyFilter, setCompanyFilter, purchaserCompanyFilter, setPurchaserCompanyFilter,
     categoryFilter, setCategoryFilter, statusFilter, setStatusFilter, purchaserFilter, setPurchaserFilter,
     isCfoFilterOpen, setIsCfoFilterOpen,

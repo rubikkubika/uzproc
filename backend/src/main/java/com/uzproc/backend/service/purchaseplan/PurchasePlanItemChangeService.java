@@ -3,6 +3,7 @@ package com.uzproc.backend.service.purchaseplan;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemChangeDto;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemChange;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemChangeRepository;
+import com.uzproc.backend.service.user.CurrentUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -25,9 +26,12 @@ public class PurchasePlanItemChangeService {
     private static final Logger logger = LoggerFactory.getLogger(PurchasePlanItemChangeService.class);
     
     private final PurchasePlanItemChangeRepository changeRepository;
+    private final CurrentUserService currentUserService;
 
-    public PurchasePlanItemChangeService(PurchasePlanItemChangeRepository changeRepository) {
+    public PurchasePlanItemChangeService(PurchasePlanItemChangeRepository changeRepository,
+                                         CurrentUserService currentUserService) {
         this.changeRepository = changeRepository;
+        this.currentUserService = currentUserService;
     }
 
     /**
@@ -52,7 +56,9 @@ public class PurchasePlanItemChangeService {
                 afterStr
             );
             change.setChangeDate(LocalDateTime.now());
-            
+            // Автор — пользователь запроса; у импорта и синхронизации пользователя нет
+            currentUserService.getCurrentUser().ifPresent(change::setChangedBy);
+
             changeRepository.save(change);
             logger.debug("Logged change for purchase plan item {}: field={}, before={}, after={}", 
                 purchasePlanItemId, fieldName, beforeStr, afterStr);
@@ -100,6 +106,7 @@ public class PurchasePlanItemChangeService {
         dto.setValueBefore(entity.getValueBefore());
         dto.setValueAfter(entity.getValueAfter());
         dto.setChangeDate(entity.getChangeDate());
+        dto.setChangedBy(CurrentUserService.displayName(entity.getChangedBy()));
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

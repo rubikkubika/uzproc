@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { MessageCircle, Factory, Eye } from 'lucide-react';
-import { ALL_COLUMNS } from '../constants/purchase-plan-items.constants';
+import { MessageCircle, Factory, Eye, CircleCheck } from 'lucide-react';
+import { ALL_COLUMNS, PurchaserCheckedFilterValue } from '../constants/purchase-plan-items.constants';
+import PurchasePlanPurchaserCheckedFilterButton from './PurchasePlanPurchaserCheckedFilterButton';
 import { SortField, SortDirection } from '../types/purchase-plan-items.types';
 import SortableHeader from './SortableHeader';
 import FilterButton from '../filters/FilterButton';
@@ -31,6 +32,8 @@ interface PurchasePlanItemsTableColumnsHeaderProps {
   setFilters?: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
   setLocalFilters?: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
   setCurrentPage?: (page: number) => void;
+  /** Фильтр колонки «Проверено закупщиком» (драфт): '' — все, 'true' / 'false' */
+  onPurchaserCheckedFilterChange?: (value: PurchaserCheckedFilterValue) => void;
   // Filter configs
   cfoFilterButtonRef: React.RefObject<HTMLButtonElement | null>;
   cfoFilter: Set<string>;
@@ -132,9 +135,10 @@ export default function PurchasePlanItemsTableColumnsHeader({
   setLastSelectedMonthIndex,
   selectedCurrency,
   setSelectedCurrency,
+  onPurchaserCheckedFilterChange,
 }: PurchasePlanItemsTableColumnsHeaderProps) {
   return (
-    <thead className="bg-gray-50 sticky top-0 z-10">
+    <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
       <tr>
         {filteredColumnOrder.map((columnKey) => {
           // Колонка «глазик» (только драфт): исключение позиции и её договора из планирования
@@ -145,9 +149,39 @@ export default function PurchasePlanItemsTableColumnsHeader({
                 className="px-0 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
                 title="Исключение из планирования"
+                data-tour={`col-${columnKey}`}
               >
                 <div className="flex items-center justify-center">
                   <Eye className="w-4 h-4 text-gray-400" />
+                </div>
+              </th>
+            );
+          }
+
+          // Колонка галочки «Проверено закупщиком» (только драфт)
+          if (columnKey === 'purchaserChecked') {
+            return (
+              <th
+                key={columnKey}
+                className="px-0 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
+                style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
+                title="Проверено закупщиком"
+                data-tour={`col-${columnKey}`}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  {/* Верхний уровень — фильтр символами (24px) */}
+                  <div className="h-[24px] flex items-center justify-center flex-shrink-0">
+                    {onPurchaserCheckedFilterChange && (
+                      <PurchasePlanPurchaserCheckedFilterButton
+                        value={localFilters.purchaserChecked || ''}
+                        onChange={onPurchaserCheckedFilterChange}
+                      />
+                    )}
+                  </div>
+                  {/* Нижний уровень — название колонки символом (20px) */}
+                  <div className="flex items-center justify-center min-h-[20px]">
+                    <CircleCheck className="w-4 h-4 text-gray-400" />
+                  </div>
                 </div>
               </th>
             );
@@ -163,6 +197,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
                 key={columnKey}
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: '350px', minWidth: '350px' }}
+                data-tour={`col-${columnKey}`}
                 draggable={!!columnKey}
                 onDragStart={columnKey ? (e) => handleDragStart(e, columnKey) : undefined}
                 onDragOver={columnKey ? (e) => handleDragOver(e, columnKey) : undefined}
@@ -202,8 +237,9 @@ export default function PurchasePlanItemsTableColumnsHeader({
           // Для колонки details создаем простой заголовок без сортировки и фильтров (значок комментариев, как на заявках)
           if (columnKey === 'details') {
             return (
-              <th 
+              <th
                 key={columnKey}
+                data-tour={`col-${columnKey}`}
                 className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: `${getColumnWidth(columnKey)}px` }}
                 draggable={!!columnKey}
@@ -234,6 +270,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
+                data-tour={`col-${columnKey}`}
                 className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: `${getColumnWidth(columnKey)}px` }}
                 draggable={!!columnKey}
@@ -344,6 +381,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
             <SortableHeader
               key={columnKey}
               field={columnKey}
+              tourTarget={`col-${columnKey}`}
               label={column.label}
               filterType={isTextFilter ? 'text' : undefined}
               columnKey={columnKey}

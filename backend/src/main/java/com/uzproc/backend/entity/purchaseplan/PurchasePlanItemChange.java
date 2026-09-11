@@ -36,6 +36,11 @@ public class PurchasePlanItemChange {
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
+    /** Пользователь, внёсший изменение (null — изменение без пользователя: импорт, синхронизация) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "changed_by_id")
+    private com.uzproc.backend.entity.user.User changedBy;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -135,6 +140,14 @@ public class PurchasePlanItemChange {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public com.uzproc.backend.entity.user.User getChangedBy() {
+        return changedBy;
+    }
+
+    public void setChangedBy(com.uzproc.backend.entity.user.User changedBy) {
+        this.changedBy = changedBy;
     }
 }
 

@@ -11,10 +11,19 @@ public class PurchasePlanItemChangeDto {
     private String valueBefore;
     private String valueAfter;
     private LocalDateTime changeDate;
+    private String changedBy; // кто внёс изменение (фамилия и имя), null — без пользователя
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public PurchasePlanItemChangeDto() {
+    }
+
+    public String getChangedBy() {
+        return changedBy;
+    }
+
+    public void setChangedBy(String changedBy) {
+        this.changedBy = changedBy;
     }
 
     // Getters and Setters

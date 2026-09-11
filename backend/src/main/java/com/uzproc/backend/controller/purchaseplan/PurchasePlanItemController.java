@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -532,6 +533,32 @@ public class PurchasePlanItemController {
                 return ResponseEntity.ok(updatedItem);
             }
             return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Галочка «Проверено закупщиком» у позиции драфта: ставят и снимают только закупщики и администраторы.
+     */
+    @PatchMapping("/{id}/purchaser-checked")
+    public ResponseEntity<?> updatePurchasePlanItemPurchaserChecked(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> requestBody) {
+        try {
+            Boolean checked = requestBody.get("purchaserChecked");
+            if (checked == null) {
+                return ResponseEntity.badRequest().body("Поле purchaserChecked обязательно");
+            }
+            PurchasePlanItemDto updatedItem = purchasePlanDraftService.setPurchaserChecked(id, checked);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {

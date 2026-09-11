@@ -10,7 +10,9 @@ export default function PurchaseTrackerLoginForm() {
   const { open, toggle, email, setEmail, password, setPassword, error, loading, submit } = useTrackerLogin();
 
   return (
+    // data-tour="tracker-tabs": у гостя на месте вкладок «Мои»/«Избранное» — эта форма входа
     <div
+      data-tour="tracker-tabs"
       className="flex flex-col gap-3 rounded-2xl bg-white px-4 py-3.5"
       style={{ border: '1.5px solid #DFE3EB', boxShadow: '0 1px 2px rgba(16,24,40,.05)' }}
     >

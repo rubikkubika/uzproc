@@ -70,6 +70,7 @@ export default function PurchaseTrackerSidebar({ email, fullName, role, loading,
       ) : (
         /* Вкладки «Мои» / «Избранное» — на одном уровне */
         <div
+          data-tour="tracker-tabs"
           className="flex gap-1 rounded-2xl bg-white p-1.5"
           style={{ border: '1.5px solid #DFE3EB', boxShadow: '0 1px 2px rgba(16,24,40,.05)' }}
         >

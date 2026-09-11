@@ -2,25 +2,34 @@
 
 import React from 'react';
 import { CfoSummaryItem } from '../types/purchase-plan-items.types';
+import { useCopyWithFeedback } from '../hooks/useCopyWithFeedback';
+import PurchasePlanCopyLinkButton from './PurchasePlanCopyLinkButton';
+import { buildPublicPlanDraftCfoLink } from '@/utils/publicPlanLink';
 
 interface PurchasePlanItemsCfoSummaryTableProps {
   cfoSummary: CfoSummaryItem[];
   cfoFilter: Set<string>;
   setCfoFilter: (filter: Set<string>) => void;
   setCurrentPage: (page: number) => void;
+  /** Год плана: подставляется в ссылку на публичный драфт */
+  selectedYear?: number | null;
 }
 
 /**
  * Компонент сводной таблицы по ЦФО.
  * Отображает количество позиций, сумму бюджета и сложность по каждому ЦФО
  * с возможностью фильтрации таблицы по клику на строку.
+ * В последней колонке — копирование ссылки на публичный драфт плана с фильтром по этому ЦФО.
  */
 export default function PurchasePlanItemsCfoSummaryTable({
   cfoSummary,
   cfoFilter,
   setCfoFilter,
   setCurrentPage,
+  selectedYear = null,
 }: PurchasePlanItemsCfoSummaryTableProps) {
+  const { copiedKey, copy } = useCopyWithFeedback();
+
   const selectedItems = cfoFilter.size === 0
     ? cfoSummary
     : cfoSummary.filter(item => cfoFilter.has(item.cfo));
@@ -63,8 +72,14 @@ export default function PurchasePlanItemsCfoSummaryTable({
                 <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
                   Сумма бюджета
                 </th>
-                <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider whitespace-nowrap">
+                <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
                   Сложность
+                </th>
+                <th
+                  className="px-1 py-1 text-center text-xs font-medium text-gray-500 tracking-wider whitespace-nowrap"
+                  title="Скопировать ссылку на публичный драфт плана закупок с фильтром по ЦФО"
+                >
+                  Ссылка
                 </th>
               </tr>
             </thead>
@@ -94,7 +109,7 @@ export default function PurchasePlanItemsCfoSummaryTable({
                           maximumFractionDigits: 0,
                         })}
                       </td>
-                      <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
+                      <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
                         {item.totalComplexity > 0
                           ? item.totalComplexity.toLocaleString('ru-RU', {
                               minimumFractionDigits: 0,
@@ -102,12 +117,21 @@ export default function PurchasePlanItemsCfoSummaryTable({
                             })
                           : '-'}
                       </td>
+                      <td className="px-1 py-1 text-xs whitespace-nowrap">
+                        <div className="flex items-center justify-center">
+                          <PurchasePlanCopyLinkButton
+                            copied={copiedKey === item.cfo}
+                            title={`Скопировать ссылку на публичный драфт плана закупок по ЦФО «${item.cfo}»`}
+                            onCopy={() => copy(item.cfo, buildPublicPlanDraftCfoLink(item.cfo, selectedYear))}
+                          />
+                        </div>
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-2 py-1 text-xs text-gray-500 text-center whitespace-nowrap">
+                  <td colSpan={5} className="px-2 py-1 text-xs text-gray-500 text-center whitespace-nowrap">
                     Нет данных
                   </td>
                 </tr>
@@ -133,7 +157,7 @@ export default function PurchasePlanItemsCfoSummaryTable({
                     maximumFractionDigits: 0,
                   })}
                 </td>
-                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
+                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
                   {totalComplexity > 0
                     ? totalComplexity.toLocaleString('ru-RU', {
                         minimumFractionDigits: 0,
@@ -141,6 +165,7 @@ export default function PurchasePlanItemsCfoSummaryTable({
                       })
                     : '-'}
                 </td>
+                <td className="px-1 py-1" />
               </tr>
             </tfoot>
           </table>

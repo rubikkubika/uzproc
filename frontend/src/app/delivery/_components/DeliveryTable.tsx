@@ -27,9 +27,10 @@ import DeliveryResponsibleSummaryTable from './ui/summary/DeliveryResponsibleSum
 import { useDeliveryResponsibleSummary } from './hooks/useDeliveryResponsibleSummary';
 import { useDeliverySummarySelection } from './hooks/useDeliverySummarySelection';
 import { useDeliveryDeadlineChart } from './hooks/useDeliveryDeadlineChart';
-import DeliveryTour from './ui/tour/DeliveryTour';
-import TourButton from './ui/tour/TourButton';
-import { useDeliveryTour } from './hooks/useDeliveryTour';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { DELIVERY_TOUR_STEPS } from './constants/delivery-tour.constants';
 
 export default function DeliveryTable() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -59,6 +60,8 @@ export default function DeliveryTable() {
     reload,
     setPlannedDate,
     updatePlannedDeliveryDate,
+    updateActualDeliveryDate,
+    updateEsfDate,
   } = useDeliveryTable();
 
   // Диаграмма распределения поставок по дням месяца — по плановой дате поставки
@@ -85,7 +88,7 @@ export default function DeliveryTable() {
     filters,
   });
 
-  const tour = useDeliveryTour();
+  const tour = useTour(DELIVERY_TOUR_STEPS);
 
   const reportStatusOptions = useReportStatusOptions();
   const responsibleOptions = useResponsibleOptions();
@@ -434,7 +437,12 @@ export default function DeliveryTable() {
                     <span className="truncate block" title={item.innerId ?? undefined}>{item.innerId ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <DeliveryDatesCell delivery={item} onChangePlannedDate={updatePlannedDeliveryDate} />
+                    <DeliveryDatesCell
+                      delivery={item}
+                      onChangePlannedDate={updatePlannedDeliveryDate}
+                      onChangeActualDate={updateActualDeliveryDate}
+                      onChangeEsfDate={updateEsfDate}
+                    />
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
                     <div className="flex flex-col items-start gap-1">
@@ -572,19 +580,7 @@ export default function DeliveryTable() {
         onSaved={reload}
       />
 
-      <DeliveryTour
-        active={tour.active}
-        steps={tour.steps}
-        step={tour.step}
-        stepIndex={tour.stepIndex}
-        totalSteps={tour.totalSteps}
-        isFirst={tour.isFirst}
-        isLast={tour.isLast}
-        onNext={tour.next}
-        onPrev={tour.prev}
-        onClose={tour.stop}
-        onGoTo={tour.goTo}
-      />
+      <Tour tour={tour} title="Тур по разделу «Поставки»" />
     </div>
   );
 }

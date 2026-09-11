@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import {
   OverviewTab,
   OverviewTabItem,
@@ -38,6 +39,8 @@ interface OverviewTabsProps {
   onTabChange: (tab: OverviewTab) => void;
   /** Вкладки, скрытые для текущего пользователя (например, kpi2 — только для логина admin) */
   hiddenTabs?: OverviewTab[];
+  /** Действия в правом верхнем углу раздела (напр. кнопка запуска тура). */
+  actions?: ReactNode;
 }
 
 const topTabs: OverviewTopTabItem[] = [
@@ -59,6 +62,7 @@ export function OverviewTabs({
   activeTab,
   onTabChange,
   hiddenTabs = [],
+  actions,
 }: OverviewTabsProps) {
   const categoryTabs: OverviewTabItem[] = DASHBOARD_CATEGORY_TABS[activeDashboardCategory]
     .filter((id) => !hiddenTabs.includes(id))
@@ -70,7 +74,7 @@ export function OverviewTabs({
   return (
     <div className="bg-white rounded shadow">
       {/* Верхний уровень вкладок */}
-      <div className="flex items-center gap-0.5 border-b border-gray-300 px-1 pt-0.5 pb-0">
+      <div data-tour="overview-top-tabs" className="flex items-center gap-0.5 border-b border-gray-300 px-1 pt-0.5 pb-0">
         {topTabs.map((tab) => (
           <button
             key={tab.id}
@@ -84,10 +88,15 @@ export function OverviewTabs({
             {tab.label}
           </button>
         ))}
+        {actions ? (
+          <div data-tour="tour-button" className="ml-auto flex-shrink-0 pb-0.5">
+            {actions}
+          </div>
+        ) : null}
       </div>
       {/* Категории дэшбордов */}
       {activeTopTab === 'dashboards' && (
-        <div className="flex flex-wrap gap-0.5 border-b border-gray-200 px-1 pt-0.5 pb-0">
+        <div data-tour="overview-categories" className="flex flex-wrap gap-0.5 border-b border-gray-200 px-1 pt-0.5 pb-0">
           {dashboardCategories.map((cat) => (
             <button
               key={cat.id}
@@ -105,7 +114,7 @@ export function OverviewTabs({
       )}
       {/* Вложенные вкладки внутри категории */}
       {activeTopTab === 'dashboards' && categoryTabs.length > 0 && (
-        <div className="flex flex-wrap gap-0.5 border-b border-gray-100 px-1 pt-0.5 pb-0">
+        <div data-tour="overview-sub-tabs" className="flex flex-wrap gap-0.5 border-b border-gray-100 px-1 pt-0.5 pb-0">
           {categoryTabs.map((tab) => (
             <button
               key={tab.id}

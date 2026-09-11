@@ -16,9 +16,20 @@ interface Props {
   procedure: EtpProcedure | null;
 }
 
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+function Section({
+  title,
+  count,
+  tourId,
+  children,
+}: {
+  title: string;
+  count?: number;
+  /** Значение атрибута data-tour для тура по разделу */
+  tourId?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="bg-white border border-gray-200 rounded-lg p-4">
+    <section data-tour={tourId} className="bg-white border border-gray-200 rounded-lg p-4">
       <h3 className="text-sm font-semibold text-gray-900 mb-3">
         {title}
         {count != null && <span className="ml-1.5 text-gray-400 font-normal">({count})</span>}
@@ -40,7 +51,7 @@ export default function EtpDetail({ procedure: p }: Props) {
   return (
     <div className="h-full overflow-y-auto bg-gray-50 p-4 space-y-4">
       {/* Заголовок */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <div data-tour="etp-detail-header" className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -121,7 +132,7 @@ export default function EtpDetail({ procedure: p }: Props) {
         </Section>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div data-tour="etp-rules" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Правила */}
         <Section title="Правила проведения">
           <EtpDetailRules procedure={p} />
@@ -162,24 +173,24 @@ export default function EtpDetail({ procedure: p }: Props) {
       )}
 
       {/* Результаты */}
-      <Section title="Результаты">
+      <Section title="Результаты" tourId="etp-results">
         <EtpDetailResults results={p.results} />
       </Section>
 
       {/* Конкурентный лист */}
       {p.competition && (
-        <Section title="Конкурентный лист" count={p.competition.suppliers.length}>
+        <Section title="Конкурентный лист" count={p.competition.suppliers.length} tourId="etp-competition">
           <EtpDetailCompetition competition={p.competition} />
         </Section>
       )}
 
       {/* Участники */}
-      <Section title="Участники" count={p.participantsCount}>
+      <Section title="Участники" count={p.participantsCount} tourId="etp-participants">
         <EtpDetailParticipants participants={p.participants} />
       </Section>
 
       {/* Документы */}
-      <Section title="Документы" count={p.filesCount}>
+      <Section title="Документы" count={p.filesCount} tourId="etp-documents">
         <EtpDetailFiles files={p.files} />
       </Section>
     </div>

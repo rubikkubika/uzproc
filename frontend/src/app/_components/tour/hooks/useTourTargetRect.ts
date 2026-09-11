@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { TOUR_MEASURE_DELAY } from '../constants/delivery-tour.constants';
-import type { TourRect } from '../types/delivery-tour.types';
+import { TOUR_MEASURE_DELAY } from '../constants/tour.constants';
+import type { TourRect } from '../types/tour.types';
 import { tourTargetSelector } from '../utils/tour.utils';
 
 /**

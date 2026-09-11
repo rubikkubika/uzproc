@@ -6,12 +6,17 @@ import { useEtpData } from './hooks/useEtpData';
 import { useEtpFilters } from './hooks/useEtpFilters';
 import EtpList from './ui/EtpList';
 import EtpDetail from './ui/EtpDetail';
+import Tour from '@/app/_components/tour/ui/Tour';
+import TourButton from '@/app/_components/tour/ui/TourButton';
+import { useTour } from '@/app/_components/tour/hooks/useTour';
+import { ETP_TOUR_STEPS } from './constants/etp-tour.constants';
 
 export default function EtpSection() {
   const { snapshot, loading, error } = useEtpData();
   const procedures = useMemo(() => snapshot?.procedures ?? [], [snapshot]);
   const { search, setSearch, statusFilter, setStatusFilter, filtered } = useEtpFilters(procedures);
   const [selectedGuid, setSelectedGuid] = useState<string | null>(null);
+  const tour = useTour(ETP_TOUR_STEPS);
 
   // Автовыбор первой процедуры при загрузке / смене фильтра
   useEffect(() => {
@@ -49,7 +54,7 @@ export default function EtpSection() {
     <div className="h-full flex flex-col min-h-0">
       {/* Шапка раздела */}
       <div className="flex items-center justify-between gap-3 px-1 pb-3 flex-shrink-0">
-        <div className="flex items-center gap-2">
+        <div data-tour="etp-header" className="flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-blue-600" />
           <div>
             <h1 className="text-xl font-bold text-gray-900">ЭТП · Закупки UZUM MARKET</h1>
@@ -59,12 +64,16 @@ export default function EtpSection() {
             </p>
           </div>
         </div>
+        <div className="flex-shrink-0">
+          <TourButton onClick={tour.start} />
+        </div>
       </div>
 
       {/* Мастер-деталь */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(300px,380px)_1fr] min-h-0 border border-gray-200 rounded-lg overflow-hidden bg-white">
         <div className="min-h-0 hidden lg:flex flex-col">
           <EtpList
+            tourTargets
             procedures={filtered}
             total={snapshot.count}
             byStatus={snapshot.byStatus}
@@ -94,6 +103,8 @@ export default function EtpSection() {
           <EtpDetail procedure={selected} />
         </div>
       </div>
+
+      <Tour tour={tour} title="Тур по разделу «ЭТП»" />
     </div>
   );
 }

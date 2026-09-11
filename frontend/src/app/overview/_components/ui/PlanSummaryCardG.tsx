@@ -45,7 +45,7 @@ export function PlanSummaryCardG({ planned, initiated, excluded }: Props) {
   const values: Record<string, number> = { planned, initiated, excluded };
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 flex flex-col gap-4">
+    <div data-tour="plan-summary" className="bg-white rounded-xl shadow p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">Сводка месяца</h3>
         <span
