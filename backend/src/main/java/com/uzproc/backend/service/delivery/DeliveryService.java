@@ -6,6 +6,7 @@ import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
 import com.uzproc.backend.dto.delivery.DeliveryDeadlineDayDto;
 import com.uzproc.backend.dto.delivery.DeliveryDeadlineHistogramDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
+import com.uzproc.backend.dto.delivery.DeliveryFilterParams;
 import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
 import com.uzproc.backend.entity.delivery.DeliveryPaymentScheme;
 import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
@@ -28,7 +29,6 @@ import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.delivery.DeliveryRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
-import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -143,34 +143,8 @@ public class DeliveryService {
         return new Object[]{null, null};
     }
 
-    public Page<DeliveryDto> findAll(
-            int page,
-            int size,
-            String sortBy,
-            String sortDir,
-            String innerId,
-            String contractInnerId,
-            String contractPurchaseRequestId,
-            String supplierName,
-            String status,
-            String currency,
-            String comment,
-            String responsibleName,
-            Integer dateYear,
-            Boolean dateNull,
-            String paymentScheme,
-            String shipmentStatus,
-            String reportStatus,
-            String paymentsStatus,
-            String tab,
-            String plannedDeliveryDate,
-            Boolean overdue,
-            Integer deliveredYear) {
-
-        Specification<Delivery> spec = buildSpecification(
-                innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency,
-                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
-                reportStatus, paymentsStatus, tab, plannedDeliveryDate, overdue, deliveredYear);
+    public Page<DeliveryDto> findAll(int page, int size, String sortBy, String sortDir, DeliveryFilterParams filter) {
+        Specification<Delivery> spec = DeliverySpecifications.build(filter);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -204,33 +178,13 @@ public class DeliveryService {
      * показывает ровно те записи, которые видны в таблице.
      * Поставки без соответствующей даты в распределение не попадают.
      */
-    public DeliveryDeadlineHistogramDto getDeadlineHistogram(
-            int year,
-            int month,
-            String innerId,
-            String contractInnerId,
-            String contractPurchaseRequestId,
-            String supplierName,
-            String status,
-            String currency,
-            String comment,
-            String responsibleName,
-            Integer dateYear,
-            Boolean dateNull,
-            String paymentScheme,
-            String shipmentStatus,
-            String reportStatus,
-            String paymentsStatus,
-            String tab) {
-
+    public DeliveryDeadlineHistogramDto getDeadlineHistogram(int year, int month, DeliveryFilterParams filter) {
         LocalDate monthStart = LocalDate.of(year, month, 1);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
         int daysInMonth = monthEnd.getDayOfMonth();
 
-        Specification<Delivery> baseSpec = buildSpecification(
-                innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency,
-                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
-                reportStatus, paymentsStatus, tab, null, null, null);
+        // Выбранный день и группа горизонта диаграмму не сужают — она показывает весь месяц
+        Specification<Delivery> baseSpec = DeliverySpecifications.build(filter.withoutDaySelection());
 
         // Столбцы: непоставленные поставки по плановой дате поставки
         Specification<Delivery> plannedSpec = baseSpec.and((root, query, cb) -> cb.and(
@@ -480,20 +434,6 @@ public class DeliveryService {
     private static boolean isAutoDistributable(Payment p) {
         return isDistributable(p) && p.getRequestStatus() != PaymentRequestStatus.DRAFT;
     }
-
-    /** Вкладки списка поставок. */
-    /** Спецзначение фильтров статуса поставки и статуса оплаты: статус не заполнен (колонка «Без статуса» в сводке). */
-    public static final String SHIPMENT_STATUS_NONE = "NONE";
-
-    /** Вкладка «Все»: фильтра по состоянию поставки нет. */
-    public static final String TAB_ALL = "all";
-
-    public static final String TAB_IN_WORK = "in-work";
-    public static final String TAB_CLOSED = "closed";
-    public static final String TAB_CLOSED_REVIEW = "closed-review";
-
-    /** Значение «Статуса отчёта», означающее закрытую поставку (в нижнем регистре, без пробелов по краям). */
-    private static final String REPORT_STATUS_CLOSED = "закрыто";
 
     /** Минимальный допуск на округление при сверке сумм оплат с долями схемы (копеечные расхождения). */
     private static final BigDecimal DISTRIBUTION_MIN_TOLERANCE = new BigDecimal("1.00");
@@ -1837,225 +1777,6 @@ public class DeliveryService {
         return dto;
     }
 
-    private Specification<Delivery> buildSpecification(
-            String innerId, String contractInnerId, String contractPurchaseRequestId,
-            String supplierName, String status,
-            String currency, String comment, String responsibleName,
-            Integer dateYear, Boolean dateNull, String paymentScheme, String shipmentStatus,
-            String reportStatus, String paymentsStatus, String tab, String plannedDeliveryDate,
-            Boolean overdue, Integer deliveredYear) {
-        return (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (innerId != null && !innerId.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("innerId")), "%" + innerId.trim().toLowerCase() + "%"));
-            }
-
-            if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
-                var contractJoin = root.join("contract", jakarta.persistence.criteria.JoinType.LEFT);
-                predicates.add(cb.like(cb.lower(contractJoin.get("innerId")), "%" + contractInnerId.trim().toLowerCase() + "%"));
-            }
-
-            // Номер заявки на закупку берётся из связанного договора-спецификации.
-            // Фильтр текстовый (поиск по вхождению), поэтому число приводится к строке.
-            if (contractPurchaseRequestId != null && !contractPurchaseRequestId.trim().isEmpty()) {
-                var contractJoin = root.join("contract", jakarta.persistence.criteria.JoinType.LEFT);
-                predicates.add(cb.like(
-                        contractJoin.get("purchaseRequestId").as(String.class),
-                        "%" + contractPurchaseRequestId.trim() + "%"));
-            }
-
-            if (supplierName != null && !supplierName.trim().isEmpty()) {
-                var supplierJoin = root.join("supplier", jakarta.persistence.criteria.JoinType.LEFT);
-                predicates.add(cb.like(cb.lower(supplierJoin.get("name")), "%" + supplierName.trim().toLowerCase() + "%"));
-            }
-
-            if (status != null && !status.trim().isEmpty()) {
-                // Спецзначение из сводки по ответственным: поставки с незаполненным статусом оплаты
-                if (SHIPMENT_STATUS_NONE.equalsIgnoreCase(status.trim())) {
-                    predicates.add(cb.isNull(root.get("status")));
-                } else {
-                    DeliveryStatus parsed = DeliveryStatus.fromDisplayName(status.trim());
-                    if (parsed != null) {
-                        predicates.add(cb.equal(root.get("status"), parsed));
-                    } else {
-                        // нет совпадения по displayName/name — гарантированно пустой результат
-                        predicates.add(cb.disjunction());
-                    }
-                }
-            }
-
-            if (currency != null && !currency.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("currency")), "%" + currency.trim().toLowerCase() + "%"));
-            }
-
-            if (comment != null && !comment.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("comment")), "%" + comment.trim().toLowerCase() + "%"));
-            }
-
-            if (responsibleName != null && !responsibleName.trim().isEmpty()) {
-                var userJoin = root.join("responsible", jakarta.persistence.criteria.JoinType.LEFT);
-                String lowerFilter = "%" + responsibleName.trim().toLowerCase() + "%";
-                // Полное отображаемое имя «Фамилия Имя» — для точного совпадения из выпадающего списка.
-                var fullName = cb.lower(cb.concat(cb.concat(
-                        cb.coalesce(userJoin.<String>get("surname"), ""), " "),
-                        cb.coalesce(userJoin.<String>get("name"), "")));
-                predicates.add(cb.or(
-                        cb.like(cb.lower(userJoin.get("surname")), lowerFilter),
-                        cb.like(cb.lower(userJoin.get("name")), lowerFilter),
-                        cb.like(fullName, lowerFilter)
-                ));
-            }
-
-            // Фильтр по конкретному дню (клик по столбцу диаграммы). Столбец объединяет два среза:
-            // непоставленные поставки с плановой датой в этот день и поставленные с фактической
-            // датой поставки в этот день — таблица показывает и то, и другое.
-            if (plannedDeliveryDate != null && !plannedDeliveryDate.trim().isEmpty()) {
-                try {
-                    LocalDate day = LocalDate.parse(plannedDeliveryDate.trim());
-                    predicates.add(cb.or(
-                            cb.and(cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
-                                    cb.equal(root.get("plannedDeliveryDate"), day)),
-                            cb.and(cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
-                                    cb.equal(root.get("actualDeliveryDate"), day))
-                    ));
-                } catch (Exception e) {
-                    logger.warn("Delivery list: некорректная плановая дата '{}' — фильтр пропущен", plannedDeliveryDate);
-                }
-            }
-
-            if (dateNull != null && dateNull) {
-                predicates.add(cb.isNull(root.get("date")));
-            } else if (dateYear != null) {
-                LocalDate yearStart = LocalDate.of(dateYear, 1, 1);
-                LocalDate yearEnd = LocalDate.of(dateYear, 12, 31);
-                predicates.add(cb.between(root.get("date"), yearStart, yearEnd));
-            }
-
-            if (paymentScheme != null && !paymentScheme.trim().isEmpty()) {
-                try {
-                    PaymentScheme scheme = PaymentScheme.valueOf(paymentScheme.trim().toUpperCase());
-                    predicates.add(cb.equal(root.get("paymentScheme"), scheme));
-                } catch (IllegalArgumentException ignored) {
-                    // некорректное значение — фильтр пропускаем
-                }
-            }
-
-            if (shipmentStatus != null && !shipmentStatus.trim().isEmpty()) {
-                // Спецзначение из сводки по ответственным: поставки с незаполненным статусом
-                if (SHIPMENT_STATUS_NONE.equalsIgnoreCase(shipmentStatus.trim())) {
-                    predicates.add(cb.isNull(root.get("shipmentStatus")));
-                } else {
-                    ShipmentStatus parsed = ShipmentStatus.fromDisplayName(shipmentStatus.trim());
-                    if (parsed != null) {
-                        predicates.add(cb.equal(root.get("shipmentStatus"), parsed));
-                    } else {
-                        predicates.add(cb.disjunction());
-                    }
-                }
-            }
-
-            // «Просрочено» из сводки: ещё не поставлено, а плановая дата поставки уже прошла
-            if (Boolean.TRUE.equals(overdue)) {
-                predicates.add(cb.and(
-                        cb.or(cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
-                                cb.isNull(root.get("shipmentStatus"))),
-                        cb.isNotNull(root.get("plannedDeliveryDate")),
-                        cb.lessThan(root.get("plannedDeliveryDate"), LocalDate.now())));
-            }
-
-            // «Поставлено за год» из сводки: статус «Поставлено» и фактическая дата поставки в этом году
-            if (deliveredYear != null) {
-                predicates.add(cb.and(
-                        cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
-                        cb.between(root.get("actualDeliveryDate"),
-                                LocalDate.of(deliveredYear, 1, 1),
-                                LocalDate.of(deliveredYear, 12, 31))));
-            }
-
-            if (reportStatus != null && !reportStatus.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("reportStatus")), "%" + reportStatus.trim().toLowerCase() + "%"));
-            }
-
-            // Статус оплат (вычисляемый по коллекции payments):
-            //   none          — оплат нет;
-            //   undistributed — есть оплаты, но хотя бы у одной не указан тип (Аванс/По факту);
-            //   distributed   — есть оплаты и у всех указан тип.
-            if (paymentsStatus != null && !paymentsStatus.trim().isEmpty()) {
-                String ps = paymentsStatus.trim().toLowerCase();
-                if ("none".equals(ps)) {
-                    predicates.add(cb.isEmpty(root.get("payments")));
-                } else if (ps.startsWith("undistributed") || "distributed".equals(ps)) {
-                    // Подзапрос: количество привязанных оплат без типа у этой поставки.
-                    jakarta.persistence.criteria.Subquery<Long> sub = query.subquery(Long.class);
-                    jakarta.persistence.criteria.Root<Delivery> subRoot = sub.from(Delivery.class);
-                    var subPayments = subRoot.join("payments", jakarta.persistence.criteria.JoinType.INNER);
-                    sub.select(cb.count(subPayments));
-                    sub.where(
-                            cb.equal(subRoot.get("id"), root.get("id")),
-                            cb.isNull(subPayments.get("paymentType")));
-                    if ("distributed".equals(ps)) {
-                        // Есть оплаты и ни одной без типа.
-                        predicates.add(cb.and(cb.isNotEmpty(root.get("payments")), cb.equal(sub, 0L)));
-                    } else {
-                        // «undistributed» — любое кол-во нераспределённых; «undistributed:N» — ровно N.
-                        Integer exact = null;
-                        int colon = ps.indexOf(':');
-                        if (colon >= 0) {
-                            try {
-                                exact = Integer.valueOf(ps.substring(colon + 1).trim());
-                            } catch (NumberFormatException ignored) {
-                                // некорректное число — трактуем как «любое кол-во»
-                            }
-                        }
-                        if (exact != null) {
-                            predicates.add(cb.equal(sub, exact.longValue()));
-                        } else {
-                            predicates.add(cb.and(cb.isNotEmpty(root.get("payments")), cb.greaterThan(sub, 0L)));
-                        }
-                    }
-                }
-            }
-
-            // Вкладки. Взаимоисключающие: поставка попадает ровно в одну.
-            //   «Закрыто»            — статус отгрузки DELIVERED И статус оплаты PAID (правила системы);
-            //   «Закрыто-разобрать»  — в отчёте «Закрыто», но по правилам поставка не закрыта;
-            //   «В работе»           — всё остальное.
-            // tab == null → без фильтра (все).
-            if (tab != null && !tab.isBlank()) {
-                Predicate closedByRules = cb.and(
-                        cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
-                        cb.equal(root.get("status"), DeliveryStatus.PAID));
-                // Null-безопасное «НЕ закрыто»: строки с NULL-статусами тоже не закрыты
-                // (cb.not(...) на NULL даёт UNKNOWN, и такие строки выпали бы из выборки).
-                Predicate notClosedByRules = cb.or(
-                        cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
-                        cb.isNull(root.get("shipmentStatus")),
-                        cb.notEqual(root.get("status"), DeliveryStatus.PAID),
-                        cb.isNull(root.get("status")));
-                // «Статус отчёт» — свободный текст из Excel, сравниваем без учёта регистра и пробелов.
-                Predicate closedInReport = cb.equal(
-                        cb.lower(cb.trim(root.get("reportStatus"))), REPORT_STATUS_CLOSED);
-                Predicate notClosedInReport = cb.or(
-                        cb.isNull(root.get("reportStatus")),
-                        cb.notEqual(cb.lower(cb.trim(root.get("reportStatus"))), REPORT_STATUS_CLOSED));
-
-                switch (tab) {
-                    case TAB_CLOSED -> predicates.add(closedByRules);
-                    case TAB_CLOSED_REVIEW -> predicates.add(cb.and(closedInReport, notClosedByRules));
-                    case TAB_IN_WORK -> predicates.add(cb.and(notClosedByRules, notClosedInReport));
-                    // «Все» и любое неизвестное значение — без фильтра по состоянию.
-                    // Исключение здесь роняло бы запрос, а при stateless-JWT ошибка контроллера
-                    // возвращается клиенту как 403 и выглядит как проблема доступа.
-                    case TAB_ALL -> { }
-                    default -> logger.warn("Delivery list: неизвестная вкладка '{}' — фильтр по вкладке пропущен", tab);
-                }
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
-    }
-
     /**
      * Поля сортировки, которые фронт называет иначе, чем они лежат в сущности:
      * значение — путь для JPA (join строится автоматически).
@@ -2064,7 +1785,8 @@ public class DeliveryService {
             "contractPurchaseRequestId", "contract.purchaseRequestId",
             "contractInnerId", "contract.innerId",
             "contractName", "contract.name",
-            "supplierName", "supplier.name"
+            "supplierName", "supplier.name",
+            "responsibleName", "responsible.surname"
     );
 
     private Sort buildSort(String sortBy, String sortDir) {

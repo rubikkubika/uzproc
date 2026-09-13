@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageResponse, SortField, SortDirection, Delivery } from '../types/delivery.types';
+import type { DeliveryQuery, DeliveryTab, HorizonKey } from '../types/delivery-query.types';
 import { PAGE_SIZE } from '../constants/delivery.constants';
 import { useDeliveryFilters } from './useDeliveryFilters';
 import { useDeliveryData } from './useDeliveryData';
 import { useInfiniteScroll } from './useInfiniteScroll';
-import type { DeliveryTab } from '../ui/DeliveryTableTabs';
-import { getBackendUrl } from '@/utils/api';
+import { useDeliveryTabCounts } from './useDeliveryTabCounts';
+import { useDeliveryRowMutations } from './useDeliveryRowMutations';
+import { useDeliveryPositionRestore } from './useDeliveryPositionRestore';
+import { readDeliveryViewState, writeDeliveryViewState } from '../utils/delivery-view-state.utils';
 
 export const useDeliveryTable = () => {
+  // Сохранённое состояние — при возврате со страницы договора или заявки таблица открывается как была
+  const [saved] = useState(readDeliveryViewState);
   const [data, setData] = useState<PageResponse | null>(null);
   const [allItems, setAllItems] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,22 +20,24 @@ export const useDeliveryTable = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
-  const pageSize = PAGE_SIZE;
   // По умолчанию — по номеру заявки на закупку, от большего к меньшему
-  const [sortField, setSortField] = useState<SortField>('contractPurchaseRequestId');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<SortField>(saved?.sortField ?? 'contractPurchaseRequestId');
+  const [sortDirection, setSortDirection] = useState<SortDirection>(saved?.sortDirection ?? 'desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  // Контейнер прокрутки таблицы — его позиция запоминается при переходе к договору или заявке
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const currentYear = new Date().getFullYear();
   // По умолчанию список ограничен текущим годом; «Все» и «Без даты» переключаются кнопками
-  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
-  const [showNoDate, setShowNoDate] = useState(false);
-  // Плановая дата поставки (ISO) — выбирается кликом по столбцу диаграммы над таблицей
-  const [plannedDate, setPlannedDate] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(saved ? saved.query.year : currentYear);
+  const [showNoDate, setShowNoDate] = useState(saved?.query.noDate ?? false);
+  // День, выбранный на ленте «По дням» (ISO), и группа горизонта — взаимоисключающие
+  const [plannedDate, setPlannedDate] = useState<string | null>(saved?.query.plannedDate ?? null);
+  const [horizon, setHorizon] = useState<HorizonKey | null>(saved?.query.horizon ?? null);
   // Вкладки (взаимоисключающие): «В работе» (по умолчанию) / «Закрыто» (Поставлено + Оплачено)
   // / «Закрыто-разобрать» (в отчёте «Закрыто», но по правилам не закрыта)
-  const [activeTab, setActiveTab] = useState<DeliveryTab>('in-work');
+  const [activeTab, setActiveTab] = useState<DeliveryTab>(saved?.query.tab ?? 'in-work');
 
   const availableYears = useMemo(() => {
     const years: number[] = [];
@@ -38,8 +45,38 @@ export const useDeliveryTable = () => {
     return years;
   }, [currentYear]);
 
-  const filtersHook = useDeliveryFilters(setCurrentPage);
-  const dataHook = useDeliveryData();
+  const filtersHook = useDeliveryFilters(setCurrentPage, saved?.query ?? null);
+  const { fetchData: fetchPage } = useDeliveryData();
+  const mutations = useDeliveryRowMutations(setAllItems);
+
+  const query: DeliveryQuery = useMemo(() => ({
+    filters: filtersHook.filters,
+    year: selectedYear,
+    noDate: showNoDate,
+    paymentScheme: filtersHook.paymentSchemeFilter,
+    shipmentStatus: filtersHook.shipmentStatusFilter,
+    tab: activeTab,
+    plannedDate,
+    overdue: filtersHook.overdueFilter,
+    deliveredYear: filtersHook.deliveredYearFilter,
+    horizon,
+  }), [filtersHook.filters, selectedYear, showNoDate, filtersHook.paymentSchemeFilter, filtersHook.shipmentStatusFilter,
+    activeTab, plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter, horizon]);
+  const queryStr = JSON.stringify(query);
+
+  const tabCounts = useDeliveryTabCounts(query, reloadKey, fetchPage);
+  const { initialSize } = useDeliveryPositionRestore({ saved, scrollRef, loading, itemsCount: allItems.length });
+
+  // Фильтры и сортировка запоминаются при каждом изменении; позиция в списке — только при уходе со страницы,
+  // поэтому здесь она обнуляется: после смены фильтров прежняя прокрутка уже не имеет смысла
+  useEffect(() => {
+    writeDeliveryViewState({ query: JSON.parse(queryStr), sortField, sortDirection, loadedCount: 0, scrollTop: 0 });
+  }, [queryStr, sortField, sortDirection]);
+
+  /** Перед переходом к договору или заявке: запоминает, сколько строк подгружено и где прокрутка */
+  const rememberPosition = useCallback(() => {
+    writeDeliveryViewState({ loadedCount: allItems.length, scrollTop: scrollRef.current?.scrollTop ?? 0 });
+  }, [allItems.length]);
 
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
@@ -69,40 +106,35 @@ export const useDeliveryTable = () => {
     setCurrentPage(0);
   }, []);
 
+  /** Клик по дню ленты: выбирает день (null — снимает) и снимает группу горизонта */
+  const selectPlannedDate = useCallback((date: string | null) => {
+    setPlannedDate(date);
+    setHorizon(null);
+    setCurrentPage(0);
+  }, []);
+
+  /** Клик по карточке горизонта: повторный клик снимает, выбор снимает день */
+  const toggleHorizon = useCallback((key: HorizonKey) => {
+    setHorizon(prev => (prev === key ? null : key));
+    setPlannedDate(null);
+    setCurrentPage(0);
+  }, []);
+
+  const clearHorizon = useCallback(() => setHorizon(null), []);
+
   const handleResetFilters = useCallback(() => {
-    const empty: Record<string, string> = {
-      innerId: '', contractInnerId: '', contractPurchaseRequestId: '', supplierName: '',
-      status: '', currency: '', comment: '', responsibleName: '', reportStatus: '', paymentsStatus: '',
-    };
-    filtersHook.setFilters(empty);
-    filtersHook.setLocalFilters(empty);
-    filtersHook.setPaymentSchemeFilter('');
-    filtersHook.setShipmentStatusFilter('');
-    filtersHook.setOverdueFilter(false);
-    filtersHook.setDeliveredYearFilter(null);
+    filtersHook.resetAll();
     // Клик по сводке переводит на вкладку «Все» — сброс возвращает вкладку по умолчанию
     setActiveTab('in-work');
     // Сброс возвращает фильтр дат к состоянию по умолчанию — текущему году
     setSelectedYear(currentYear);
-    setPlannedDate(null);
     setShowNoDate(false);
+    setPlannedDate(null);
+    setHorizon(null);
     setCurrentPage(0);
   }, [filtersHook, currentYear]);
 
-  const fetchData = useCallback(async (
-    page: number,
-    size: number,
-    sortF: SortField,
-    sortDir: SortDirection,
-    filters: Record<string, string>,
-    append: boolean,
-    year: number | null,
-    noDate: boolean,
-    paymentScheme: string,
-    shipmentStatus: string,
-    tab: DeliveryTab | null,
-    recheck: boolean = false,
-  ) => {
+  const fetchData = useCallback(async (page: number, append: boolean, recheck = false) => {
     if (append) {
       setLoadingMore(true);
     } else {
@@ -110,157 +142,38 @@ export const useDeliveryTable = () => {
       setAllItems([]);
     }
     setError(null);
+    // Первая страница при возврате на прежнее место — сразу все ранее подгруженные строки
+    const size = append ? PAGE_SIZE : initialSize();
     try {
-      const result = await dataHook.fetchData(
-        page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus, tab, recheck,
-        plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter
-      );
+      const result = await fetchPage(page, size, sortField, sortDirection, JSON.parse(queryStr), recheck);
       const items = result?.content ?? [];
-      if (append) {
-        setAllItems(prev => [...prev, ...items]);
-      } else {
-        setAllItems(items);
-      }
+      setAllItems(prev => (append ? [...prev, ...items] : items));
       setData(result ?? null);
       const totalPages = result?.totalPages ?? 0;
       setHasMore(items.length === size && (totalPages === 0 || page + 1 < totalPages));
-      setCurrentPage(page);
+      // Запрос размера N страниц покрывает страницы 0..N-1 — следующая подгрузка продолжит с N
+      setCurrentPage(page + size / PAGE_SIZE - 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [dataHook.fetchData, plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter]);
+  }, [fetchPage, sortField, sortDirection, queryStr, initialSize]);
 
-  const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
-  const paymentSchemeFilter = filtersHook.paymentSchemeFilter;
-  const shipmentStatusFilter = filtersHook.shipmentStatusFilter;
   useEffect(() => {
     setCurrentPage(0);
     // recheck=true — основной запрос списка: бэкенд пересчитывает статусы (авто-закрытие) при обновлении.
-    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, true);
-  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, reloadKey, plannedDate]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Счётчики вкладок — с учётом текущих фильтров (size=1, читаем totalElements).
-  const [tabCounts, setTabCounts] = useState<{ all: number | null; inWork: number | null; closed: number | null; closedReview: number | null }>(
-    { all: null, inWork: null, closed: null, closedReview: null }
-  );
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const count = (tab: DeliveryTab) => dataHook.fetchData(
-        0, 1, null, null, filtersHook.filters, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter,
-        tab, false, plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter
-      );
-      try {
-        const [all, inW, cl, clRev] = await Promise.all([
-          count('all'), count('in-work'), count('closed'), count('closed-review'),
-        ]);
-        if (!cancelled) setTabCounts({
-          all: all?.totalElements ?? 0,
-          inWork: inW?.totalElements ?? 0,
-          closed: cl?.totalElements ?? 0,
-          closedReview: clRev?.totalElements ?? 0,
-        });
-      } catch {
-        if (!cancelled) setTabCounts({ all: null, inWork: null, closed: null, closedReview: null });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [filtersStr, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, reloadKey, dataHook.fetchData, plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchData(0, false, true);
+  }, [fetchData, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
-
-  const updateDeliveryDeadline = useCallback(async (id: number, newDate: string) => {
-    const prev = allItems;
-    setAllItems(items => items.map(it => (it.id === id ? { ...it, deliveryDeadline: newDate || null } : it)));
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/deliveries/${id}/delivery-deadline`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deliveryDeadline: newDate }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      console.error('Не удалось обновить срок поставки:', err);
-      setAllItems(prev);
-    }
-  }, [allItems]);
-
-  /**
-   * Ручное изменение плановой даты поставки. Пустая строка возвращает дату в автоматический
-   * режим (снова равна дедлайну), непустая — фиксирует её: автопересчёты, включая стартовую
-   * сверку, такую дату не меняют. Значение в списке обновляется оптимистично.
-   */
-  const updatePlannedDeliveryDate = useCallback(async (id: number, newDate: string) => {
-    const prev = allItems;
-    setAllItems(items => items.map(it => (
-      it.id === id
-        ? { ...it, plannedDeliveryDate: newDate || it.deliveryDeadline, plannedDeliveryDateManual: Boolean(newDate) }
-        : it
-    )));
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/deliveries/${id}/planned-delivery-date`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plannedDeliveryDate: newDate }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const saved = await res.json() as Delivery;
-      setAllItems(items => items.map(it => (it.id === id ? { ...it, ...saved } : it)));
-    } catch (err) {
-      console.error('Не удалось обновить плановую дату поставки:', err);
-      setAllItems(prev);
-    }
-  }, [allItems]);
-
-  /**
-   * Ручной ввод фактической даты поставки или даты ЭСФ прямо в таблице (пустая строка очищает дату).
-   * Значение обновляется оптимистично, затем строка берётся из ответа сервера: для факта сервер
-   * меняет и статус отгрузки («Поставлено» / «Ожидает поставку»), и статус оплаты.
-   */
-  const updateDeliveryDateField = useCallback(async (
-    id: number,
-    field: 'actualDeliveryDate' | 'esfDate',
-    endpoint: 'actual-delivery-date' | 'esf-date',
-    newDate: string,
-  ) => {
-    const prev = allItems;
-    setAllItems(items => items.map(it => (it.id === id ? { ...it, [field]: newDate || null } : it)));
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/deliveries/${id}/${endpoint}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: newDate }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const saved = await res.json() as Delivery;
-      setAllItems(items => items.map(it => (it.id === id ? { ...it, ...saved } : it)));
-    } catch (err) {
-      console.error(`Не удалось обновить дату поставки (${field}):`, err);
-      setAllItems(prev);
-    }
-  }, [allItems]);
-
-  const updateActualDeliveryDate = useCallback(
-    (id: number, newDate: string) => updateDeliveryDateField(id, 'actualDeliveryDate', 'actual-delivery-date', newDate),
-    [updateDeliveryDateField]
-  );
-
-  const updateEsfDate = useCallback(
-    (id: number, newDate: string) => updateDeliveryDateField(id, 'esfDate', 'esf-date', newDate),
-    [updateDeliveryDateField]
-  );
 
   useInfiniteScroll(loadMoreRef, {
     enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
     onLoadMore: useCallback(() => {
-      if (hasMore && !loadingMore && allItems.length > 0) {
-        const nextPage = currentPage + 1;
-        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab);
-      }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab]),
+      if (hasMore && !loadingMore && allItems.length > 0) fetchData(currentPage + 1, true);
+    }, [hasMore, loadingMore, allItems.length, currentPage, fetchData]),
     threshold: 0.1,
   });
 
@@ -269,16 +182,17 @@ export const useDeliveryTable = () => {
     allItems,
     loading,
     loadingMore,
+    hasMore,
     error,
-    currentPage,
-    setCurrentPage,
-    pageSize,
     sortField,
     sortDirection,
     handleSort,
     handleResetFilters,
     filters: filtersHook,
     loadMoreRef,
+    scrollRef,
+    rememberPosition,
+    query,
     selectedYear,
     showNoDate,
     availableYears,
@@ -290,11 +204,12 @@ export const useDeliveryTable = () => {
     handleShowNoDate,
     handleShowAll,
     reload,
-    updateDeliveryDeadline,
-    updatePlannedDeliveryDate,
-    updateActualDeliveryDate,
-    updateEsfDate,
+    reloadKey,
     plannedDate,
-    setPlannedDate,
+    selectPlannedDate,
+    horizon,
+    toggleHorizon,
+    clearHorizon,
+    ...mutations,
   };
 };

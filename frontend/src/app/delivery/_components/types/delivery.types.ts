@@ -136,6 +136,28 @@ export const SHIPMENT_STATUS_OPTIONS: Array<{ value: string; label: string }> = 
   { value: 'OVERDUE', label: 'Просрочено' },
 ];
 
+/** Сигнал строки (колонка «№ · внимание»). value — код фильтра на бэкенде. */
+export const SIGNAL_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'overdue', label: 'Просрочено' },
+  { value: 'discrepancy', label: 'Расхождение с отчётом' },
+  { value: 'undistributed', label: 'Распределить оплаты' },
+  { value: 'no-esf', label: 'Нет ЭСФ' },
+  { value: 'closed', label: 'Закрыто' },
+  { value: 'no-date', label: 'Без даты' },
+];
+
+/** Наличие ЭСФ. value — код фильтра на бэкенде. */
+export const ESF_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'present', label: 'ЭСФ есть' },
+  { value: 'missing', label: 'ЭСФ нет' },
+];
+
+/** Расхождение статуса ручного отчёта с системой. value — код фильтра на бэкенде. */
+export const DISCREPANCY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'yes', label: 'Есть расхождение' },
+  { value: 'no', label: 'Без расхождения' },
+];
+
 export interface PageResponse {
   content: Delivery[];
   totalElements: number;
@@ -144,5 +166,6 @@ export interface PageResponse {
   number: number;
 }
 
-export type SortField = keyof Delivery | null;
+/** Поле сортировки; responsibleName бэкенд сортирует по фамилии ответственного */
+export type SortField = keyof Delivery | 'responsibleName' | null;
 export type SortDirection = 'asc' | 'desc' | null;

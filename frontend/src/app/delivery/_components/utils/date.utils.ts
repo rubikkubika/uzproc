@@ -6,9 +6,40 @@ export function formatDate(value: string | null | undefined, fallback = '—'): 
   return d.toLocaleDateString('ru-RU');
 }
 
+/** Короткая дата ДД.ММ.ГГ для плотной таблицы; для пустого значения — тире. */
+export function formatShortDate(value: string | null | undefined, fallback = '—'): string {
+  const full = formatDate(value, '');
+  return full ? `${full.slice(0, 6)}${full.slice(8)}` : fallback;
+}
+
 /** Сегодняшняя дата в формате YYYY-MM-DD (для input[type=date]). */
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toIsoDate(new Date());
+}
+
+/** Локальная дата в формате YYYY-MM-DD (без сдвига часового пояса, в отличие от toISOString). */
+export function toIsoDate(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Разбор ISO-даты YYYY-MM-DD как локальной полуночи. */
+export function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+/** Начало сегодняшнего дня (локальная полночь). */
+export function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** Разница в целых днях: a − b. */
+export function daysBetween(a: Date, b: Date): number {
+  return Math.round((a.getTime() - b.getTime()) / 86_400_000);
 }
 
 /** Максимальная (самая поздняя) из дат; null, если дат нет. */

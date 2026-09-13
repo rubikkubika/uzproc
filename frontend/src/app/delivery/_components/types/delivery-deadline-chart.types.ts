@@ -1,9 +1,9 @@
 /** Один день месяца в распределении поставок по плановой дате */
 export interface DeliveryDeadlineDay {
   day: number;
-  /** Непоставленные поставки с плановой датой в этот день — высота столбца */
+  /** Непоставленные поставки с плановой датой в этот день */
   count: number;
-  /** Поставленные поставки с фактической датой поставки в этот день — галочка над столбцом */
+  /** Поставленные поставки с фактической датой поставки в этот день */
   deliveredCount: number;
 }
 
@@ -19,14 +19,24 @@ export interface DeliveryDeadlineHistogram {
   days: DeliveryDeadlineDay[];
 }
 
-/** Параметры хука диаграммы: фильтры таблицы и обратная связь по выбранному дню */
-export interface DeliveryDeadlineChartFilters {
-  /** Вызывается при выборе/снятии дня: ISO-дата выбранного дня или null */
-  onSelectedDateChange: (date: string | null) => void;
-  filters: Record<string, string>;
-  paymentSchemeFilter: string;
-  shipmentStatusFilter: string;
-  dateYear: number | null;
-  showNoDate: boolean;
-  tab: string;
+/** Ячейка ленты месяца, готовая к отображению */
+export interface RibbonDayView {
+  day: number;
+  /** «Пн», «Вт», … */
+  weekday: string;
+  isToday: boolean;
+  isPast: boolean;
+  isWeekend: boolean;
+  isSelected: boolean;
+  /** Ожидалось по плану и не поставлено (в прошлом — просрочка) */
+  plan: number;
+  /** Поставлено по факту */
+  fact: number;
+}
+
+/** Легенда ленты: итоги месяца */
+export interface RibbonLegend {
+  overdue: number;
+  expected: number;
+  delivered: number;
 }

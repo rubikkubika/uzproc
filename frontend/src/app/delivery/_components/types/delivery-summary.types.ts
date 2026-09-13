@@ -24,6 +24,15 @@ export interface DeliveryResponsibleSummary {
   items: DeliveryResponsibleSummaryItem[];
 }
 
+/** Ячейка сводки, по которой сейчас отфильтрована таблица */
+export interface SummaryCellRef {
+  /** Пусто, если срез задан без ответственного */
+  responsible: string;
+  kind: 'total' | 'shipment' | 'payment' | 'overdue' | 'delivered';
+  /** Название статуса — для kind shipment / payment */
+  status?: string;
+}
+
 /** Подпись колонки для поставок с незаполненным статусом */
 export const NO_STATUS_COLUMN = 'Без статуса';
 

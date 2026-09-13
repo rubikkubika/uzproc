@@ -1,19 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useDebouncedFiltersSync } from './useDebouncedFiltersSync';
 import { useFocusRestore } from './useFocusRestore';
-
-const INITIAL_FILTERS: Record<string, string> = {
-  innerId: '',
-  contractInnerId: '',
-  contractPurchaseRequestId: '',
-  supplierName: '',
-  status: '',
-  currency: '',
-  comment: '',
-  responsibleName: '',
-  reportStatus: '',
-  paymentsStatus: '',
-};
+import { INITIAL_FILTERS } from '../constants/delivery.constants';
+import type { DeliveryQuery } from '../types/delivery-query.types';
 
 export type PaymentSchemeFilterValue = '' | 'POSTPAYMENT' | 'PREPAYMENT';
 export type ShipmentStatusFilterValue =
@@ -25,16 +14,24 @@ export type ShipmentStatusFilterValue =
   | 'DELIVERED'
   | 'OVERDUE';
 
-export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
-  const [localFilters, setLocalFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
-  const [filters, setFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
+/**
+ * @param initial сохранённое состояние таблицы (возврат со страницы договора или заявки) —
+ *                фильтры начинаются с него, а не с пустых значений
+ */
+export const useDeliveryFilters = (setCurrentPage: (page: number) => void, initial: DeliveryQuery | null = null) => {
+  const [localFilters, setLocalFilters] = useState<Record<string, string>>(() => ({ ...INITIAL_FILTERS, ...initial?.filters }));
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({ ...INITIAL_FILTERS, ...initial?.filters }));
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [paymentSchemeFilter, setPaymentSchemeFilterState] = useState<PaymentSchemeFilterValue>('');
-  const [shipmentStatusFilter, setShipmentStatusFilterState] = useState<ShipmentStatusFilterValue>('');
+  const [paymentSchemeFilter, setPaymentSchemeFilterState] = useState<PaymentSchemeFilterValue>(
+    (initial?.paymentScheme ?? '') as PaymentSchemeFilterValue,
+  );
+  const [shipmentStatusFilter, setShipmentStatusFilterState] = useState<ShipmentStatusFilterValue>(
+    (initial?.shipmentStatus ?? '') as ShipmentStatusFilterValue,
+  );
   // Срезы из сводки по ответственным: «Просрочено» и «Поставлено за год».
   // Обычными колонками таблицы не выражаются, поэтому живут отдельными флагами.
-  const [overdueFilter, setOverdueFilterState] = useState(false);
-  const [deliveredYearFilter, setDeliveredYearFilterState] = useState<number | null>(null);
+  const [overdueFilter, setOverdueFilterState] = useState(initial?.overdue ?? false);
+  const [deliveredYearFilter, setDeliveredYearFilterState] = useState<number | null>(initial?.deliveredYear ?? null);
 
   const setPaymentSchemeFilter = useCallback((value: PaymentSchemeFilterValue) => {
     setPaymentSchemeFilterState(value);
@@ -56,38 +53,41 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     setCurrentPage(0);
   }, [setCurrentPage]);
 
-  // «Статус из отчёта» — выпадающий список; применяется сразу (без debounce),
+  // Выпадающие фильтры применяются сразу (без debounce),
   // поэтому пишем и в localFilters (для value), и в filters (для запроса).
-  const setReportStatusFilter = useCallback((value: string) => {
-    setLocalFilters(prev => ({ ...prev, reportStatus: value }));
-    setFilters(prev => ({ ...prev, reportStatus: value }));
+  const setSelectFilter = useCallback((field: string, value: string) => {
+    setLocalFilters(prev => ({ ...prev, [field]: value }));
+    setFilters(prev => ({ ...prev, [field]: value }));
     setCurrentPage(0);
   }, [setCurrentPage]);
 
-  // «Статус оплат» — выпадающий список, применяется сразу (без debounce).
-  const setPaymentsStatusFilter = useCallback((value: string) => {
-    setLocalFilters(prev => ({ ...prev, paymentsStatus: value }));
-    setFilters(prev => ({ ...prev, paymentsStatus: value }));
-    setCurrentPage(0);
-  }, [setCurrentPage]);
+  const setReportStatusFilter = useCallback((value: string) => setSelectFilter('reportStatus', value), [setSelectFilter]);
+  const setPaymentsStatusFilter = useCallback((value: string) => setSelectFilter('paymentsStatus', value), [setSelectFilter]);
+  // «Статус оплаты» (DeliveryStatus)
+  const setStatusFilter = useCallback((value: string) => setSelectFilter('status', value), [setSelectFilter]);
+  const setResponsibleNameFilter = useCallback((value: string) => setSelectFilter('responsibleName', value), [setSelectFilter]);
 
-  // «Статус оплаты» (DeliveryStatus) — выпадающий список, применяется сразу.
-  const setStatusFilter = useCallback((value: string) => {
-    setLocalFilters(prev => ({ ...prev, status: value }));
-    setFilters(prev => ({ ...prev, status: value }));
-    setCurrentPage(0);
-  }, [setCurrentPage]);
-
-  // «Ответственный» — выпадающий список, применяется сразу (без debounce).
-  const setResponsibleNameFilter = useCallback((value: string) => {
-    setLocalFilters(prev => ({ ...prev, responsibleName: value }));
-    setFilters(prev => ({ ...prev, responsibleName: value }));
+  /** Диапазон плановой даты (ISO, границы включительно); пустая строка — без границы */
+  const setPlannedRange = useCallback((from: string, to: string) => {
+    setLocalFilters(prev => ({ ...prev, plannedFrom: from, plannedTo: to }));
+    setFilters(prev => ({ ...prev, plannedFrom: from, plannedTo: to }));
     setCurrentPage(0);
   }, [setCurrentPage]);
 
   const handleFilterChange = useCallback((field: string, value: string) => {
     setLocalFilters(prev => ({ ...prev, [field]: value }));
   }, []);
+
+  /** Сбрасывает фильтры колонок и срезы сводки */
+  const resetAll = useCallback(() => {
+    setFilters({ ...INITIAL_FILTERS });
+    setLocalFilters({ ...INITIAL_FILTERS });
+    setPaymentSchemeFilterState('');
+    setShipmentStatusFilterState('');
+    setOverdueFilterState(false);
+    setDeliveredYearFilterState(null);
+    setCurrentPage(0);
+  }, [setCurrentPage]);
 
   useDebouncedFiltersSync({
     localFilters,
@@ -101,9 +101,7 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
 
   return {
     localFilters,
-    setLocalFilters,
     filters,
-    setFilters,
     focusedField,
     setFocusedField,
     handleFilterChange,
@@ -115,9 +113,14 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     setOverdueFilter,
     deliveredYearFilter,
     setDeliveredYearFilter,
+    setSelectFilter,
     setReportStatusFilter,
     setPaymentsStatusFilter,
     setStatusFilter,
     setResponsibleNameFilter,
+    setPlannedRange,
+    resetAll,
   };
 };
+
+export type DeliveryFiltersHook = ReturnType<typeof useDeliveryFilters>;

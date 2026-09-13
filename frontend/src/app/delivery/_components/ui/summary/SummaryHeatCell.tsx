@@ -1,28 +1,33 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { heatmapCellStyle, type SummaryGroup } from '../../utils/summary.utils';
 
 interface Props {
   value: number;
-  style: CSSProperties;
+  columnMax: number;
+  group: SummaryGroup;
+  selected: boolean;
   title?: string;
-  onClick?: (e: React.MouseEvent) => void;
-  className?: string;
+  onClick: () => void;
 }
 
 /**
  * Числовая ячейка сводки с заливкой по «тепловой карте».
- * Нулевое значение показывается точкой, чтобы не зашумлять таблицу.
+ * Нулевое значение показывается точкой и не кликается, чтобы не зашумлять сетку.
  */
-export default function SummaryHeatCell({ value, style, title, onClick, className = '' }: Props) {
+export default function SummaryHeatCell({ value, columnMax, group, selected, title, onClick }: Props) {
+  const clickable = value > 0;
   return (
-    <td
-      style={style}
+    <div
+      role={clickable ? 'button' : undefined}
       title={title}
-      onClick={value > 0 ? onClick : undefined}
-      className={`py-1.5 px-1.5 text-center font-medium ${value > 0 && onClick ? 'cursor-pointer' : ''} ${className}`}
+      onClick={clickable ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      style={heatmapCellStyle(value, columnMax, group)}
+      className={`h-[30px] m-px flex items-center justify-center rounded-sm tabular-nums text-slate-800 ${
+        clickable ? 'cursor-pointer hover:brightness-[.94]' : ''
+      } ${selected ? 'outline outline-2 -outline-offset-2 outline-blue-600' : ''}`}
     >
-      {value > 0 ? value : <span className="text-gray-200 text-[10px]">·</span>}
-    </td>
+      {clickable ? value : <span className="text-slate-300 text-[10px]">·</span>}
+    </div>
   );
 }

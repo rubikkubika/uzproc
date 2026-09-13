@@ -1,27 +1,35 @@
 import type { CSSProperties } from 'react';
 
+/** Группы колонок сводки: у каждой свой цвет заливки (RGB без альфы) */
+export const SUMMARY_GROUP_RGB = {
+  shipment: '37,99,235',
+  payment: '124,58,237',
+  total: '100,116,139',
+  overdue: '234,88,12',
+  delivered: '22,163,74',
+} as const;
+
+export type SummaryGroup = keyof typeof SUMMARY_GROUP_RGB;
+
 /**
- * Заливка ячейки сводки по «тепловой карте»: чем больше значение относительно максимума
- * в колонке, тем насыщеннее фон. Тот же приём, что в сводке по договорам —
- * взгляд сразу находит загруженных исполнителей.
- *
- * @param hue тон в OKLCH: свой для каждой группы колонок
+ * Сетка сводки: ответственный, статусы поставки, разделитель, статусы оплаты, разделитель,
+ * «Всего» / «Просрочено» / «Поставлено». Количество статусов приходит с бэкенда.
  */
-export function heatmapCellStyle(value: number, columnMax: number, hue: number): CSSProperties {
-  if (value === 0 || columnMax === 0) return {};
-  const intensity = 0.12 + 0.88 * (value / columnMax);
-  const lightness = (0.96 - intensity * 0.45).toFixed(3);
-  const chroma = (0.02 + intensity * 0.13).toFixed(3);
-  return {
-    backgroundColor: `oklch(${lightness} ${chroma} ${hue})`,
-    color: intensity > 0.55 ? '#ffffff' : '#1f2937',
-  };
+export function summaryGridTemplate(shipmentCount: number, paymentCount: number): string {
+  return `180px repeat(${shipmentCount}, minmax(52px, 1fr)) 12px repeat(${paymentCount}, minmax(52px, 1fr)) 12px repeat(3, minmax(64px, 1fr))`;
 }
 
-/** Тона групп колонок сводки: статус поставки, статус оплаты, просрочка и поставленное за год */
-export const SUMMARY_HUE = {
-  shipment: 220,
-  payment: 285,
-  overdue: 25,
-  delivered: 155,
-} as const;
+/**
+ * Заливка ячейки сводки по «тепловой карте»: чем больше значение относительно максимума
+ * в колонке, тем насыщеннее фон — взгляд сразу находит загруженных исполнителей.
+ * Нулевые значения не заливаются.
+ */
+export function heatmapCellStyle(value: number, columnMax: number, group: SummaryGroup): CSSProperties {
+  if (value <= 0 || columnMax <= 0) return {};
+  const t = value / columnMax;
+  const alpha = group === 'total' ? 0.05 + 0.25 * t : 0.08 + 0.55 * t;
+  return {
+    backgroundColor: `rgba(${SUMMARY_GROUP_RGB[group]},${alpha.toFixed(2)})`,
+    color: group !== 'total' && t > 0.6 ? '#ffffff' : '#1e293b',
+  };
+}

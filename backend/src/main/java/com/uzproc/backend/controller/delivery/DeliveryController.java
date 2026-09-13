@@ -4,11 +4,14 @@ import com.uzproc.backend.dto.delivery.BulkCreateDeliveriesResultDto;
 import com.uzproc.backend.dto.delivery.CreateDeliveryRequestDto;
 import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
 import com.uzproc.backend.dto.delivery.DeliveryDeadlineHistogramDto;
+import com.uzproc.backend.dto.delivery.DeliveryFilterParams;
+import com.uzproc.backend.dto.delivery.DeliveryHorizonDto;
 import com.uzproc.backend.dto.delivery.DeliveryResponsibleSummaryDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
 import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
 import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
 import com.uzproc.backend.dto.payment.PaymentDto;
+import com.uzproc.backend.service.delivery.DeliveryHorizonService;
 import com.uzproc.backend.service.delivery.DeliveryResponsibleSummaryService;
 import com.uzproc.backend.service.delivery.DeliveryService;
 import org.springframework.data.domain.Page;
@@ -24,11 +27,14 @@ public class DeliveryController {
 
     private final DeliveryService deliveryService;
     private final DeliveryResponsibleSummaryService responsibleSummaryService;
+    private final DeliveryHorizonService horizonService;
 
     public DeliveryController(DeliveryService deliveryService,
-                              DeliveryResponsibleSummaryService responsibleSummaryService) {
+                              DeliveryResponsibleSummaryService responsibleSummaryService,
+                              DeliveryHorizonService horizonService) {
         this.deliveryService = deliveryService;
         this.responsibleSummaryService = responsibleSummaryService;
+        this.horizonService = horizonService;
     }
 
     /**
@@ -47,24 +53,7 @@ public class DeliveryController {
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
-            @RequestParam(required = false) String innerId,
-            @RequestParam(required = false) String contractInnerId,
-            @RequestParam(required = false) String contractPurchaseRequestId,
-            @RequestParam(required = false) String supplierName,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String currency,
-            @RequestParam(required = false) String comment,
-            @RequestParam(required = false) String responsibleName,
-            @RequestParam(required = false) Integer dateYear,
-            @RequestParam(required = false) Boolean dateNull,
-            @RequestParam(required = false) String paymentScheme,
-            @RequestParam(required = false) String shipmentStatus,
-            @RequestParam(required = false) String reportStatus,
-            @RequestParam(required = false) String paymentsStatus,
-            @RequestParam(required = false) String tab,
-            @RequestParam(required = false) String plannedDeliveryDate,
-            @RequestParam(required = false) Boolean overdue,
-            @RequestParam(required = false) Integer deliveredYear,
+            DeliveryFilterParams filter,
             @RequestParam(required = false, defaultValue = "false") boolean recheck) {
 
         // При обновлении списка (recheck=true) — пересчёт статусов: авто-закрытие
@@ -73,43 +62,29 @@ public class DeliveryController {
             deliveryService.autoCloseFullyPaidDeliveries();
         }
 
-        Page<DeliveryDto> deliveries = deliveryService.findAll(page, size, sortBy, sortDir,
-                innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency, comment,
-                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus,
-                tab, plannedDeliveryDate, overdue, deliveredYear);
-        return ResponseEntity.ok(deliveries);
+        return ResponseEntity.ok(deliveryService.findAll(page, size, sortBy, sortDir, filter));
     }
 
     /**
-     * Распределение поставок по дням месяца для столбчатой диаграммы над таблицей:
-     * столбцы — непоставленные поставки по плановой дате, галочки — поставленные
-     * по фактической дате поставки. Принимает те же фильтры, что и список, чтобы
-     * диаграмма показывала ровно видимые в таблице записи.
+     * Распределение поставок по дням месяца для ленты «По дням»: непоставленные поставки
+     * по плановой дате и поставленные по фактической дате поставки. Принимает те же фильтры,
+     * что и список, чтобы лента показывала ровно видимые в таблице записи.
      */
     @GetMapping("/deadline-histogram")
     public ResponseEntity<DeliveryDeadlineHistogramDto> getDeadlineHistogram(
             @RequestParam int year,
             @RequestParam int month,
-            @RequestParam(required = false) String innerId,
-            @RequestParam(required = false) String contractInnerId,
-            @RequestParam(required = false) String contractPurchaseRequestId,
-            @RequestParam(required = false) String supplierName,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String currency,
-            @RequestParam(required = false) String comment,
-            @RequestParam(required = false) String responsibleName,
-            @RequestParam(required = false) Integer dateYear,
-            @RequestParam(required = false) Boolean dateNull,
-            @RequestParam(required = false) String paymentScheme,
-            @RequestParam(required = false) String shipmentStatus,
-            @RequestParam(required = false) String reportStatus,
-            @RequestParam(required = false) String paymentsStatus,
-            @RequestParam(required = false) String tab) {
+            DeliveryFilterParams filter) {
+        return ResponseEntity.ok(deliveryService.getDeadlineHistogram(year, month, filter));
+    }
 
-        return ResponseEntity.ok(deliveryService.getDeadlineHistogram(
-                year, month, innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency,
-                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
-                reportStatus, paymentsStatus, tab));
+    /**
+     * Горизонт непоставленных поставок: «Просрочено», «Сегодня», «Ближайшие 7 дней», «Позже», «Без даты».
+     * Фильтры те же, что у списка; выбранный день и группа горизонта не учитываются.
+     */
+    @GetMapping("/horizon")
+    public ResponseEntity<DeliveryHorizonDto> getHorizon(DeliveryFilterParams filter) {
+        return ResponseEntity.ok(horizonService.getHorizon(filter));
     }
 
     @GetMapping("/{id}")
