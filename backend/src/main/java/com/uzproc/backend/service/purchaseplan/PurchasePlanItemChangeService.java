@@ -15,7 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -82,6 +87,22 @@ public class PurchasePlanItemChangeService {
     @Transactional(readOnly = true)
     public List<PurchasePlanItemChange> getChangesByGuid(UUID guid) {
         return changeRepository.findByGuidOrderByChangeDateDesc(guid);
+    }
+
+    /**
+     * Имена полей, которые хотя бы раз менялись, по каждой из указанных позиций.
+     * Позиции без изменений в результат не попадают.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Set<String>> getChangedFieldsByItemIds(Collection<Long> purchasePlanItemIds) {
+        Map<Long, Set<String>> result = new HashMap<>();
+        if (purchasePlanItemIds == null || purchasePlanItemIds.isEmpty()) {
+            return result;
+        }
+        for (Object[] row : changeRepository.findDistinctChangedFieldsByItemIds(purchasePlanItemIds)) {
+            result.computeIfAbsent((Long) row[0], id -> new HashSet<>()).add((String) row[1]);
+        }
+        return result;
     }
 
     /**

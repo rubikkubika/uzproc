@@ -139,7 +139,7 @@ export default function DeliveryTable() {
 
       <CreateDeliveryModal open={modals.createOpen} onClose={modals.closeCreate} onCreated={table.reload} />
       <DeliveryDetailsModal delivery={modals.selectedDelivery} onClose={modals.closeDetails} onSaved={table.reload} />
-      <Tour tour={tour} title="Тур по разделу «Поставки»" />
+      <Tour tour={tour} title="Тур по разделу «Поставка»" />
     </div>
   );
 }

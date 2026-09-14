@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -46,10 +47,12 @@ import java.util.stream.Collectors;
  * ДС, продлевающее уже отобранный договор (та же заявка и тот же поставщик), в драфт не попадает — иначе дубль.
  *
  * Аналитика позиции драфта заполняется из договора и (при наличии) из связанной заявки на закупку.
- * Договоры с признаком «Исключён из планирования» в драфт не попадают.
+ * По договорам с признаком «Исключён из планирования» новые позиции не создаются.
  *
  * Позиции драфта не удаляются: очистка их скрывает, а повторное формирование возвращает позицию
- * по тому же договору с тем же id (вместе с историей изменений и комментариями).
+ * по тому же договору с тем же id (вместе с историей изменений и комментариями). Поля возвращённой позиции
+ * заполняются заново из договора, кроме изменённых вручную — ручные правки (по истории изменений) сохраняются.
+ * Позиция, исключённая «глазиком», тоже возвращается — исключённой.
  */
 @Service
 public class PurchasePlanDraftService {
@@ -80,6 +83,37 @@ public class PurchasePlanDraftService {
 
     /** Сложность по умолчанию, если её не удалось взять из связанной заявки на закупку */
     private static final String DEFAULT_COMPLEXITY = "2";
+
+    /**
+     * Поля позиции, редактируемые вручную: имя поля в истории изменений → перенос значения между позициями
+     * (from → to). Значения, записанные вместе с полем (кто и когда отметил, исключил), переносятся вместе с ним.
+     * При добавлении нового ручного поля в PurchasePlanItemService его нужно добавить и сюда.
+     */
+    private static final Map<String, BiConsumer<PurchasePlanItem, PurchasePlanItem>> MANUAL_FIELDS = Map.ofEntries(
+            Map.entry("requestDate", (from, to) -> to.setRequestDate(from.getRequestDate())),
+            Map.entry("newContractDate", (from, to) -> to.setNewContractDate(from.getNewContractDate())),
+            Map.entry("contractEndDate", (from, to) -> to.setContractEndDate(from.getContractEndDate())),
+            Map.entry("status", (from, to) -> {
+                to.setStatus(from.getStatus());
+                to.setExcludedFromPlanningAt(from.getExcludedFromPlanningAt());
+                to.setExcludedFromPlanningBy(from.getExcludedFromPlanningBy());
+            }),
+            Map.entry("holding", (from, to) -> to.setHolding(from.getHolding())),
+            Map.entry("comment", (from, to) -> to.setComment(from.getComment())),
+            Map.entry("company", (from, to) -> to.setCompany(from.getCompany())),
+            Map.entry("purchaserCompany", (from, to) -> to.setPurchaserCompany(from.getPurchaserCompany())),
+            Map.entry("purchaseRequestId", (from, to) -> to.setPurchaseRequestId(from.getPurchaseRequestId())),
+            Map.entry("purchaser", (from, to) -> to.setPurchaser(from.getPurchaser())),
+            Map.entry("budgetAmount", (from, to) -> to.setBudgetAmount(from.getBudgetAmount())),
+            Map.entry("complexity", (from, to) -> to.setComplexity(from.getComplexity())),
+            Map.entry("purchaseSubject", (from, to) -> to.setPurchaseSubject(from.getPurchaseSubject())),
+            Map.entry("cfo", (from, to) -> to.setCfo(from.getCfo())),
+            Map.entry("purchaserChecked", (from, to) -> {
+                to.setPurchaserChecked(from.getPurchaserChecked());
+                to.setPurchaserCheckedAt(from.getPurchaserCheckedAt());
+                to.setPurchaserCheckedBy(from.getPurchaserCheckedBy());
+            })
+    );
 
     private final ContractRepository contractRepository;
     private final PurchasePlanItemRepository purchasePlanItemRepository;
@@ -136,6 +170,13 @@ public class PurchasePlanDraftService {
 
         Map<Long, PurchaseRequest> purchaseRequestMap = loadPurchaseRequests(contracts);
 
+        // Какие поля скрытых очисткой позиций менялись вручную — при возврате они не перезаписываются
+        Map<Long, Set<String>> manualFieldsByItem = purchasePlanItemChangeService.getChangedFieldsByItemIds(
+                existingBySourceContract.values().stream()
+                        .filter(item -> Boolean.TRUE.equals(item.getDraftCleared()))
+                        .map(PurchasePlanItem::getId)
+                        .collect(Collectors.toList()));
+
         int created = 0;
         int restored = 0;
         int skipped = 0;
@@ -151,13 +192,28 @@ public class PurchasePlanDraftService {
                 skipped++;
                 continue;
             }
+            boolean excludedFromPlanning = Boolean.TRUE.equals(contract.getExcludedFromPlanning());
+            if (existing == null && excludedFromPlanning) {
+                // По договору, исключённому из планирования, новая позиция не создаётся
+                skipped++;
+                continue;
+            }
             PurchaseRequest request = contract.getPurchaseRequestId() != null
                     ? purchaseRequestMap.get(contract.getPurchaseRequestId())
                     : null;
             if (existing != null) {
-                // Позиция скрыта очисткой драфта — возвращаем её с тем же id и заполняем заново, как новую
+                // Позиция скрыта очисткой драфта — возвращаем её с тем же id и заполняем заново из договора,
+                // сохраняя ручные правки
+                Set<String> manualFields = manualFieldsByItem.getOrDefault(existing.getId(), Set.of());
+                PurchasePlanItem manualValues = copyManualFields(existing, new PurchasePlanItem(), manualFields);
                 resetForRegeneration(existing);
                 fillDraftItem(existing, contract, request, planYear);
+                copyManualFields(manualValues, existing, manualFields);
+                recalculateNewContractDateIfNeeded(existing, manualFields);
+                if (excludedFromPlanning) {
+                    // Договор исключён «глазиком» — позиция возвращается исключённой
+                    existing.setStatus(PurchasePlanItemStatus.NOT_ACTUAL);
+                }
                 toSave.add(existing);
                 restored++;
             } else {
@@ -288,8 +344,8 @@ public class PurchasePlanDraftService {
             predicates.add(cb.equal(root.get("customerOrganization"), CustomerOrganization.UZUM_MARKET));
             // Только действующие (подписанные) договоры
             predicates.add(cb.equal(root.get("status"), ContractStatus.SIGNED));
-            // Договоры, исключённые из планирования («глазик» у позиции драфта), в драфт не попадают
-            predicates.add(cb.isFalse(root.<Boolean>get("excludedFromPlanning")));
+            // Договоры, исключённые из планирования («глазик»), не отсекаются здесь: по ним не создаются новые
+            // позиции, но скрытая очисткой позиция возвращается исключённой (см. generateDraft)
             // Срок окончания попадает в интервал планирования
             predicates.add(cb.greaterThanOrEqualTo(root.get("plannedDeliveryEndDate"), from));
             predicates.add(cb.lessThan(root.get("plannedDeliveryEndDate"), to));
@@ -370,8 +426,37 @@ public class PurchasePlanDraftService {
     }
 
     /**
+     * Переносит из одной позиции в другую значения полей, изменённых вручную.
+     *
+     * @return позиция, в которую перенесены значения
+     */
+    private static PurchasePlanItem copyManualFields(PurchasePlanItem from, PurchasePlanItem to, Set<String> manualFields) {
+        for (String field : manualFields) {
+            BiConsumer<PurchasePlanItem, PurchasePlanItem> copier = MANUAL_FIELDS.get(field);
+            if (copier != null) {
+                copier.accept(from, to);
+            }
+        }
+        return to;
+    }
+
+    /**
+     * Дата завершения закупки зависит от даты заявки и сложности: если руками меняли их, но не саму дату завершения,
+     * пересчитывает её от сохранённых значений той же формулой, что при ручном изменении.
+     */
+    private void recalculateNewContractDateIfNeeded(PurchasePlanItem item, Set<String> manualFields) {
+        boolean dependsOnManualValues = manualFields.contains("requestDate") || manualFields.contains("complexity");
+        if (manualFields.contains("newContractDate") || !dependsOnManualValues || item.getRequestDate() == null) {
+            return;
+        }
+        LocalDate newContractDate = procurementLeadTimeService.calculateNewContractDate(item.getRequestDate(), item.getComplexity());
+        item.setNewContractDate(newContractDate != null ? newContractDate : item.getRequestDate());
+    }
+
+    /**
      * Сбрасывает у позиции, скрытой очисткой драфта, поля, которые формирование не заполняет
      * или заполняет не всегда, — чтобы возвращённая позиция была такой же, как новая.
+     * Изменённые вручную поля после заполнения восстанавливаются (см. copyManualFields).
      */
     private void resetForRegeneration(PurchasePlanItem item) {
         item.setDraftCleared(Boolean.FALSE);
@@ -386,7 +471,7 @@ public class PurchasePlanDraftService {
         item.setCategory(null);
         item.setProduct(null);
         item.setIsStrategicProduct(null);
-        // Заполненная заново позиция закупщиком ещё не проверена; прошлые отметки остаются в истории изменений
+        // Отметку «Проверено закупщиком» ставят только вручную: если её ставили, она восстановится как ручная правка
         item.setPurchaserChecked(Boolean.FALSE);
         item.setPurchaserCheckedAt(null);
         item.setPurchaserCheckedBy(null);

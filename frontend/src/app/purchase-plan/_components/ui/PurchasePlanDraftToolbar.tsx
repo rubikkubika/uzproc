@@ -63,7 +63,7 @@ export default function PurchasePlanDraftToolbar({
         ) : lastResult ? (
           <span>
             Отобрано договоров: {lastResult.contractsSelected}. Создано позиций: {lastResult.created}.
-            {lastResult.skipped > 0 ? ` Уже были в драфте: ${lastResult.skipped}.` : ''}
+            {lastResult.skipped > 0 ? ` Пропущено (уже в драфте или исключены): ${lastResult.skipped}.` : ''}
           </span>
         ) : (
           <span className="text-gray-500">

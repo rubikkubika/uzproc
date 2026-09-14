@@ -11,6 +11,7 @@ import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatusGroup;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
+import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemCommentRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemSupplierRepository;
@@ -59,6 +60,7 @@ public class PurchasePlanItemService {
     private final PurchasePlanPurchaserSyncService purchaserSyncService;
     private final PurchaseRequestCommentService purchaseRequestCommentService;
     private final ProcurementLeadTimeService procurementLeadTimeService;
+    private final ContractRepository contractRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -73,7 +75,8 @@ public class PurchasePlanItemService {
             UserRepository userRepository,
             PurchasePlanPurchaserSyncService purchaserSyncService,
             PurchaseRequestCommentService purchaseRequestCommentService,
-            ProcurementLeadTimeService procurementLeadTimeService) {
+            ProcurementLeadTimeService procurementLeadTimeService,
+            ContractRepository contractRepository) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemCommentRepository = purchasePlanItemCommentRepository;
         this.purchasePlanItemSupplierRepository = purchasePlanItemSupplierRepository;
@@ -84,6 +87,7 @@ public class PurchasePlanItemService {
         this.purchaserSyncService = purchaserSyncService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
         this.procurementLeadTimeService = procurementLeadTimeService;
+        this.contractRepository = contractRepository;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -832,9 +836,27 @@ public class PurchasePlanItemService {
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
                     logger.info("Updated purchaseSubject for purchase plan item {}: purchaseSubject={}",
                             id, trimmedSubject);
+                    fillEmptySourceContractSubject(item, trimmedSubject);
                     return toDto(saved);
                 })
                 .orElse(null);
+    }
+
+    /**
+     * Предмет, введённый в позиции драфта, записывается в текущий договор (источник позиции), только если
+     * у договора предмет пустой. Заполненный предмет договора не меняется.
+     */
+    private void fillEmptySourceContractSubject(PurchasePlanItem item, String subject) {
+        if (item.getSourceContractId() == null || subject == null || subject.isEmpty()) {
+            return;
+        }
+        contractRepository.findById(item.getSourceContractId())
+                .filter(contract -> contract.getSubject() == null || contract.getSubject().trim().isEmpty())
+                .ifPresent(contract -> {
+                    contract.setSubject(subject);
+                    contractRepository.save(contract);
+                    logger.info("Filled empty subject of contract {} from purchase plan item {}", contract.getId(), item.getId());
+                });
     }
 
     @Transactional

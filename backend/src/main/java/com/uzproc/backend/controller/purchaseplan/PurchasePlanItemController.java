@@ -192,7 +192,8 @@ public class PurchasePlanItemController {
     }
 
     /**
-     * Очистка драфта плана закупок за год (полная перегенерация).
+     * Очистка драфта плана закупок за год: позиции скрываются, при следующем формировании поля заполняются
+     * заново из договоров с сохранением ручных правок.
      */
     @DeleteMapping("/draft")
     public ResponseEntity<?> clearDraft(@RequestParam(required = false) Integer year) {

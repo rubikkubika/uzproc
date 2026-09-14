@@ -19,7 +19,7 @@ import { SlaCombinedChart } from './ui/SlaCombinedChart';
 import { SlaAverageBlock } from './ui/SlaAverageBlock';
 import { SlaByPurchaserTable } from './ui/SlaByPurchaserTable';
 import AllCsiFeedback from './ui/AllCsiFeedback';
-import { EkTabContent } from './ui/EkTabContent';
+import { EkDashboardContent } from './ek/EkDashboardContent';
 import { ApprovalsTabContent } from './ui/ApprovalsTabContent';
 import { useOverviewTimelinesData } from './hooks/useOverviewTimelinesData';
 import { TimelinesTabContent } from './ui/TimelinesTabContent';
@@ -466,7 +466,7 @@ export default function Overview() {
         )}
         {activeTopTab === 'dashboards' && activeTab === 'ek' && (
           <div className="w-full">
-            <EkTabContent />
+            <EkDashboardContent />
           </div>
         )}
         {activeTopTab === 'dashboards' && activeTab === 'approvals' && (

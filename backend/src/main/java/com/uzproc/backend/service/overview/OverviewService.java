@@ -1036,7 +1036,17 @@ public class OverviewService {
         rows.sort(Comparator.comparing(OverviewEkChartRowDto::getCfo, Comparator.nullsLast(Comparator.naturalOrder())));
         logger.debug("Overview EK chart for year {}: {} CFO rows (yearType={}, amountsInBaseCurrency={})",
                 year, rows.size(), yearType, amountsInBaseCurrency);
-        return new OverviewEkChartResponseDto(yearType, rows, amountsInBaseCurrency ? baseCurrency : null, amountsInBaseCurrency);
+        // Курсы для подсказки «Суммы в RUB по курсу»: без базовой валюты и её синонимов (курс 1)
+        Map<String, BigDecimal> exchangeRates = new TreeMap<>();
+        if (amountsInBaseCurrency) {
+            overviewEkProperties.getExchangeRates().forEach((currency, rate) -> {
+                if (!currency.equalsIgnoreCase(baseCurrency) && rate != null && rate.compareTo(BigDecimal.ONE) != 0) {
+                    exchangeRates.put(currency.toUpperCase(), rate);
+                }
+            });
+        }
+        return new OverviewEkChartResponseDto(yearType, rows, amountsInBaseCurrency ? baseCurrency : null,
+                amountsInBaseCurrency, exchangeRates);
     }
 
     private static final String STAGE_PREPARATION = "Подготовка ЗнЗ";
