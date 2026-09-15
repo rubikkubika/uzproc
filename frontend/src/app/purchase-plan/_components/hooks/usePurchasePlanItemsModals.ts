@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PurchasePlanItem, ModalTab } from '../types/purchase-plan-items.types';
 import { useAuth } from './useAuth';
+import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 
 export const usePurchasePlanItemsModals = () => {
   const [detailsModalOpen, setDetailsModalOpen] = useState<number | null>(null);
@@ -23,7 +24,10 @@ export const usePurchasePlanItemsModals = () => {
   } | null>(null);
 
   // Используем общий хук для получения данных аутентификации
-  const { userRole, canEdit } = useAuth();
+  const { userRole, canEdit: isAdmin, isPurchaser } = useAuth();
+  const { isDraft } = usePurchasePlanMode();
+  // План правит администратор, драфт — ещё и любой закупщик (бэкенд проверяет то же)
+  const canEdit = isAdmin || (isDraft && isPurchaser);
 
   return {
     detailsModalOpen,

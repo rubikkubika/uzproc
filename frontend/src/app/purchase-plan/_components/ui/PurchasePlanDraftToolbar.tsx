@@ -3,6 +3,7 @@
 import React from 'react';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { DraftGenerationResult } from '../hooks/usePurchasePlanDraftActions';
+import { DRAFT_MANAGE_FORBIDDEN_TITLE } from '../constants/purchase-plan-items.constants';
 
 interface PurchasePlanDraftToolbarProps {
   year: number | null;
@@ -12,6 +13,8 @@ interface PurchasePlanDraftToolbarProps {
   errorMessage: string | null;
   onGenerate: () => void;
   onClear: () => void;
+  /** Формировать и очищать драфт могут закупщики и администраторы */
+  canManage: boolean;
 }
 
 /**
@@ -26,8 +29,10 @@ export default function PurchasePlanDraftToolbar({
   errorMessage,
   onGenerate,
   onClear,
+  canManage,
 }: PurchasePlanDraftToolbarProps) {
   const isBusy = isGenerating || isClearing;
+  const isDisabled = isBusy || !canManage;
 
   return (
     <div className="px-3 py-2 border-b border-gray-200 bg-amber-50 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
@@ -38,9 +43,11 @@ export default function PurchasePlanDraftToolbar({
         <button
           data-tour="draft-generate"
           onClick={onGenerate}
-          disabled={isBusy}
+          disabled={isDisabled}
           className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Сформировать позиции драфта из действующих договоров Uzum Market и связанных с заявкой ДС, которые заканчиваются начиная с октября предыдущего года и в течение года планирования"
+          title={canManage
+            ? 'Сформировать позиции драфта из действующих договоров Uzum Market и связанных с заявкой ДС, которые заканчиваются начиная с октября предыдущего года и в течение года планирования'
+            : DRAFT_MANAGE_FORBIDDEN_TITLE}
         >
           <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} />
           {isGenerating ? 'Формирование…' : 'Сформировать из договоров'}
@@ -48,9 +55,11 @@ export default function PurchasePlanDraftToolbar({
         <button
           data-tour="draft-clear"
           onClick={onClear}
-          disabled={isBusy}
+          disabled={isDisabled}
           className="px-2 py-1 text-xs bg-red-50 text-red-700 rounded border border-red-300 hover:bg-red-100 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Скрыть все позиции драфта за выбранный год (история и комментарии сохраняются, повторное формирование вернёт позиции с теми же id)"
+          title={canManage
+            ? 'Скрыть все позиции драфта за выбранный год (история и комментарии сохраняются, повторное формирование вернёт позиции с теми же id)'
+            : DRAFT_MANAGE_FORBIDDEN_TITLE}
         >
           <Trash2 className="w-3 h-3" />
           {isClearing ? 'Очистка…' : 'Очистить драфт'}
@@ -64,6 +73,7 @@ export default function PurchasePlanDraftToolbar({
           <span>
             Отобрано договоров: {lastResult.contractsSelected}. Создано позиций: {lastResult.created}.
             {lastResult.skipped > 0 ? ` Пропущено (уже в драфте или исключены): ${lastResult.skipped}.` : ''}
+            {lastResult.purchasersFilled ? ` Назначен закупщик из заявки: ${lastResult.purchasersFilled}.` : ''}
           </span>
         ) : (
           <span className="text-gray-500">

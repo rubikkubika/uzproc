@@ -2334,8 +2334,9 @@ public class PurchasePlanItemService {
      * Ищет пользователя по имени закупщика (строка "Фамилия Имя" или частичное совпадение).
      * Используется для синхронизации закупщика из заявки в позицию плана.
      * Обрабатывает формат "Имя Фамилия (Должность, Отдел)" - извлекает только имя и фамилию.
+     * Также используется при формировании драфта плана закупок (PurchasePlanDraftService).
      */
-    private User findUserByPurchaserName(String purchaserName) {
+    public User findUserByPurchaserName(String purchaserName) {
         if (purchaserName == null || purchaserName.trim().isEmpty()) {
             return null;
         }

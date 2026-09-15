@@ -9,7 +9,7 @@ import { usePurchasePlanBackUrl } from './hooks/usePurchasePlanBackUrl';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
-import { FILTERS_STORAGE_KEY, DRAFT_FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from './constants/purchase-plan-items.constants';
+import { FILTERS_STORAGE_KEY, DRAFT_FILTERS_STORAGE_KEY, DEFAULT_STATUSES, DRAFT_MANAGE_FORBIDDEN_TITLE } from './constants/purchase-plan-items.constants';
 
 // UI компоненты
 import PurchasePlanItemsTableHeader from './ui/PurchasePlanItemsTableHeader';
@@ -20,6 +20,7 @@ import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumn
 import PurchasePlanItemsTableColumnsHeader from './ui/PurchasePlanItemsTableColumnsHeader';
 import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
 import PurchasePlanDraftToolbar from './ui/PurchasePlanDraftToolbar';
+import PurchasePlanExcludedFilterButton from './ui/PurchasePlanExcludedFilterButton';
 
 // Модальные окнаф
 import PurchasePlanItemsDetailsModal from './ui/PurchasePlanItemsDetailsModal';
@@ -35,6 +36,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PurchasePlanModeProvider, usePurchasePlanMode, appendDraftParam } from './contexts/PurchasePlanModeContext';
 import { usePurchasePlanDraftActions } from './hooks/usePurchasePlanDraftActions';
 import { usePurchasePlanTour } from './hooks/usePurchasePlanTour';
+import { usePurchasePlanStatusPresets } from './hooks/usePurchasePlanStatusPresets';
 import Tour from '@/app/_components/tour/ui/Tour';
 import TourButton from '@/app/_components/tour/ui/TourButton';
 
@@ -391,11 +393,12 @@ function PurchasePlanItemsTableContent() {
     }
   }, [table]);
 
-  // Установить фильтр «только статус В плане»
-  const handleOnlyInPlan = useCallback(() => {
-    table.filters.setStatusFilter(new Set(['В плане']));
-    table.setCurrentPage(0);
-  }, [table.filters, table.setCurrentPage]);
+  // Быстрые фильтры по статусу: «Только в Плане» и «Скрытые»
+  const statusPresets = usePurchasePlanStatusPresets({
+    statusFilter: table.filters.statusFilter,
+    setStatusFilter: table.filters.setStatusFilter,
+    setCurrentPage: table.setCurrentPage,
+  });
 
   // Ref для отслеживания последней загруженной версии, чтобы избежать повторных загрузок
   const lastLoadedVersionRef = useRef<number | null>(null);
@@ -642,6 +645,7 @@ function PurchasePlanItemsTableContent() {
           errorMessage={draftActions.errorMessage}
           onGenerate={draftActions.generateDraft}
           onClear={draftActions.clearDraft}
+          canManage={table.modals.canEdit}
         />
       )}
 
@@ -707,12 +711,16 @@ function PurchasePlanItemsTableContent() {
             </button>
           </div>
           <button
-            onClick={handleOnlyInPlan}
+            onClick={statusPresets.handleOnlyInPlan}
             className="px-3 py-1 text-xs font-medium text-gray-900 bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
             title="Показать только позиции со статусом «В плане»"
           >
             Только в Плане
           </button>
+          <PurchasePlanExcludedFilterButton
+            active={statusPresets.isShowingExcluded}
+            onClick={statusPresets.handleToggleExcluded}
+          />
           <div data-tour="year-filter" className="flex items-center gap-2">
             <span className="text-xs text-gray-700 font-medium">Год:</span>
             {table.allYears.map((year) => (
@@ -744,8 +752,8 @@ function PurchasePlanItemsTableContent() {
               data-tour="create-item"
               onClick={handleCreateItem}
               className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Создать новую строку плана закупок"
-              disabled={table.versions.selectedVersionId !== null && !table.versions.selectedVersionInfo?.isCurrent}
+              title={isDraft && !table.modals.canEdit ? DRAFT_MANAGE_FORBIDDEN_TITLE : 'Создать новую строку плана закупок'}
+              disabled={(isDraft && !table.modals.canEdit) || (table.versions.selectedVersionId !== null && !table.versions.selectedVersionInfo?.isCurrent)}
             >
               <Plus className="w-3 h-3" />
               Создать строку

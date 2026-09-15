@@ -80,6 +80,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemDates(
             @PathVariable Long id,
             @RequestBody PurchasePlanItemDto dto) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             PurchasePlanItemDto updatedItem = purchasePlanItemService.updateDates(id, dto.getRequestDate(), dto.getNewContractDate());
             if (updatedItem != null) {
@@ -95,6 +96,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<PurchasePlanItemDto> updatePurchasePlanItemContractEndDate(
             @PathVariable Long id,
             @RequestBody PurchasePlanItemDto dto) {
+        purchasePlanDraftService.checkCanEditItem(id);
         PurchasePlanItemDto updatedItem = purchasePlanItemService.updateContractEndDate(id, dto.getContractEndDate());
         if (updatedItem != null) {
             return ResponseEntity.ok(updatedItem);
@@ -185,6 +187,8 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> generateDraft(@RequestParam(required = false) Integer year) {
         try {
             return ResponseEntity.ok(purchasePlanDraftService.generateDraft(year));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             logger.error("Ошибка формирования драфта плана закупок: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Неизвестная ошибка"));
@@ -200,6 +204,8 @@ public class PurchasePlanItemController {
         try {
             int deleted = purchasePlanDraftService.clearDraft(year);
             return ResponseEntity.ok(Map.of("deleted", deleted));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             logger.error("Ошибка очистки драфта плана закупок: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Неизвестная ошибка"));
@@ -246,6 +252,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String statusStr = requestBody.get("status");
             if (statusStr == null || statusStr.trim().isEmpty()) {
@@ -303,6 +310,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemHolding(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String holding = requestBody.get("holding");
             // holding может быть null или пустой строкой
@@ -329,6 +337,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemComment(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String comment = requestBody.get("comment");
             // comment может быть null или пустой строкой
@@ -347,6 +356,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemCompany(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String companyStr = requestBody.get("company");
             if (companyStr == null || companyStr.trim().isEmpty()) {
@@ -389,6 +399,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemPurchaserCompany(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String purchaserCompanyStr = requestBody.get("purchaserCompany");
             // purchaserCompany может быть null или пустой строкой
@@ -425,6 +436,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemPurchaseRequestId(
             @PathVariable Long id,
             @RequestBody Map<String, Object> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             Object purchaseRequestIdObj = requestBody.get("purchaseRequestId");
             Long purchaseRequestId = null;
@@ -458,6 +470,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemPurchaseSubject(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String purchaseSubject = requestBody.get("purchaseSubject");
             // purchaseSubject может быть null или пустой строкой
@@ -477,6 +490,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemBudgetAmount(
             @PathVariable Long id,
             @RequestBody Map<String, Object> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             Object rawValue = requestBody.get("budgetAmount");
             java.math.BigDecimal budgetAmount = null;
@@ -503,6 +517,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemComplexity(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             PurchasePlanItemDto updatedItem = purchasePlanItemService.updateComplexity(id, requestBody.get("complexity"));
             if (updatedItem != null) {
@@ -534,6 +549,8 @@ public class PurchasePlanItemController {
                 return ResponseEntity.ok(updatedItem);
             }
             return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
@@ -571,6 +588,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemCfo(
             @PathVariable Long id,
             @RequestBody Map<String, String> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             String cfo = requestBody.get("cfo");
             // cfo может быть null или пустой строкой
@@ -589,6 +607,7 @@ public class PurchasePlanItemController {
     public ResponseEntity<?> updatePurchasePlanItemPurchaser(
             @PathVariable Long id,
             @RequestBody Map<String, Object> requestBody) {
+        purchasePlanDraftService.checkCanEditItem(id);
         try {
             Object purchaserObj = requestBody.get("purchaser");
             Long purchaserId = null;
@@ -618,10 +637,19 @@ public class PurchasePlanItemController {
         }
     }
 
+    /** Нет прав на изменение драфта (проверка вне try-блоков эндпоинтов) */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<String> handleAccessDenied(AccessDeniedException e) {
+        return ResponseEntity.status(403).body(e.getMessage());
+    }
+
     // Метод getPurchasers удален - фронтенд может получать список пользователей через /users endpoint
 
     @PostMapping
     public ResponseEntity<?> createPurchasePlanItem(@RequestBody PurchasePlanItemDto dto) {
+        if (Boolean.TRUE.equals(dto.getIsDraft())) {
+            purchasePlanDraftService.requireDraftEditor();
+        }
         try {
             PurchasePlanItemDto createdItem = purchasePlanItemService.create(dto);
             return ResponseEntity.status(201).body(createdItem);

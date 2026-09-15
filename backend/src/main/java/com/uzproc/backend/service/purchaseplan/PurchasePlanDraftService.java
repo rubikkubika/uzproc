@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -141,6 +142,32 @@ public class PurchasePlanDraftService {
     }
 
     /**
+     * Править драфт, формировать и очищать его могут закупщики и администраторы.
+     *
+     * @return текущий пользователь
+     * @throws AccessDeniedException если текущий пользователь не закупщик и не администратор
+     */
+    public User requireDraftEditor() {
+        return currentUserService.getCurrentUser()
+                .filter(CurrentUserService::isPurchaserOrAdmin)
+                .orElseThrow(() -> new AccessDeniedException(
+                        "Изменять драфт плана закупок могут только закупщики и администраторы"));
+    }
+
+    /**
+     * Проверка права на изменение позиции плана: позицию драфта меняют только закупщики и администраторы.
+     * Для позиций действующего плана и несуществующих позиций проверка не выполняется.
+     *
+     * @throws AccessDeniedException если позиция относится к драфту, а пользователь не закупщик и не администратор
+     */
+    @Transactional(readOnly = true)
+    public void checkCanEditItem(Long itemId) {
+        purchasePlanItemRepository.findById(itemId)
+                .filter(item -> Boolean.TRUE.equals(item.getIsDraft()))
+                .ifPresent(item -> requireDraftEditor());
+    }
+
+    /**
      * Формирует драфт плана закупок на указанный год из действующих договоров.
      * Позиции, уже созданные из того же договора, повторно не создаются — ручные правки не теряются.
      * Позиция, скрытая очисткой драфта, возвращается с тем же id и заполняется заново.
@@ -149,6 +176,7 @@ public class PurchasePlanDraftService {
      */
     @Transactional
     public Map<String, Object> generateDraft(Integer year) {
+        requireDraftEditor();
         int planYear = year != null ? year : LocalDate.now().getYear() + 1;
 
         LocalDateTime from = LocalDate.of(planYear - 1, DRAFT_WINDOW_START_MONTH, 1).atStartOfDay();
@@ -169,17 +197,20 @@ public class PurchasePlanDraftService {
         }
 
         Map<Long, PurchaseRequest> purchaseRequestMap = loadPurchaseRequests(contracts);
+        // Закупщик из заявки → пользователь: одна и та же строка ищется один раз за формирование
+        Map<String, Optional<User>> purchaserByName = new HashMap<>();
 
-        // Какие поля скрытых очисткой позиций менялись вручную — при возврате они не перезаписываются
+        // Какие поля существующих позиций менялись вручную — они не перезаписываются ни при возврате
+        // скрытой очисткой позиции, ни при дозаполнении закупщика
         Map<Long, Set<String>> manualFieldsByItem = purchasePlanItemChangeService.getChangedFieldsByItemIds(
                 existingBySourceContract.values().stream()
-                        .filter(item -> Boolean.TRUE.equals(item.getDraftCleared()))
                         .map(PurchasePlanItem::getId)
                         .collect(Collectors.toList()));
 
         int created = 0;
         int restored = 0;
         int skipped = 0;
+        int purchasersFilled = 0;
         List<PurchasePlanItem> toSave = new ArrayList<>();
 
         for (Contract contract : contracts) {
@@ -188,7 +219,17 @@ public class PurchasePlanDraftService {
                 continue;
             }
             PurchasePlanItem existing = existingBySourceContract.get(contract.getId());
+            PurchaseRequest request = contract.getPurchaseRequestId() != null
+                    ? purchaseRequestMap.get(contract.getPurchaseRequestId())
+                    : null;
             if (existing != null && !Boolean.TRUE.equals(existing.getDraftCleared())) {
+                // Позиция уже в драфте: не пересоздаётся, но закупщик дозаполняется из заявки
+                // (позиции, сформированные до появления этого правила)
+                if (fillMissingPurchaser(existing, request,
+                        manualFieldsByItem.getOrDefault(existing.getId(), Set.of()), purchaserByName)) {
+                    toSave.add(existing);
+                    purchasersFilled++;
+                }
                 skipped++;
                 continue;
             }
@@ -198,16 +239,13 @@ public class PurchasePlanDraftService {
                 skipped++;
                 continue;
             }
-            PurchaseRequest request = contract.getPurchaseRequestId() != null
-                    ? purchaseRequestMap.get(contract.getPurchaseRequestId())
-                    : null;
             if (existing != null) {
                 // Позиция скрыта очисткой драфта — возвращаем её с тем же id и заполняем заново из договора,
                 // сохраняя ручные правки
                 Set<String> manualFields = manualFieldsByItem.getOrDefault(existing.getId(), Set.of());
                 PurchasePlanItem manualValues = copyManualFields(existing, new PurchasePlanItem(), manualFields);
                 resetForRegeneration(existing);
-                fillDraftItem(existing, contract, request, planYear);
+                fillDraftItem(existing, contract, request, planYear, purchaserByName);
                 copyManualFields(manualValues, existing, manualFields);
                 recalculateNewContractDateIfNeeded(existing, manualFields);
                 if (excludedFromPlanning) {
@@ -217,7 +255,7 @@ public class PurchasePlanDraftService {
                 toSave.add(existing);
                 restored++;
             } else {
-                toSave.add(buildDraftItem(contract, request, planYear));
+                toSave.add(buildDraftItem(contract, request, planYear, purchaserByName));
                 created++;
             }
         }
@@ -226,8 +264,9 @@ public class PurchasePlanDraftService {
             purchasePlanItemRepository.saveAll(toSave);
         }
 
-        logger.info("Draft generation for year {}: created {}, restored {} (same id), skipped {} (already in draft)",
-                planYear, created, restored, skipped);
+        logger.info("Draft generation for year {}: created {}, restored {} (same id), skipped {} (already in draft), "
+                        + "purchasers filled from request {}",
+                planYear, created, restored, skipped, purchasersFilled);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("year", planYear);
@@ -235,7 +274,29 @@ public class PurchasePlanDraftService {
         result.put("created", created + restored);
         result.put("restored", restored);
         result.put("skipped", skipped);
+        result.put("purchasersFilled", purchasersFilled);
         return result;
+    }
+
+    /**
+     * Дозаполняет закупщика у позиции, уже находящейся в драфте, из заявки, связанной с договором-источником.
+     * Меняется только закупщик и только если он не назначен и вручную не менялся (в том числе не очищался):
+     * остальные поля, включая отметку «Проверено закупщиком», не затрагиваются.
+     *
+     * @param manualFields поля позиции, изменённые вручную
+     * @return true, если закупщик был назначен
+     */
+    private boolean fillMissingPurchaser(PurchasePlanItem item, PurchaseRequest request, Set<String> manualFields,
+                                         Map<String, Optional<User>> purchaserByName) {
+        if (item.getPurchaser() != null || manualFields.contains("purchaser")) {
+            return false;
+        }
+        User purchaser = findPurchaserFromRequest(request, purchaserByName);
+        if (purchaser == null) {
+            return false;
+        }
+        item.setPurchaser(purchaser);
+        return true;
     }
 
     /**
@@ -246,6 +307,7 @@ public class PurchasePlanDraftService {
      */
     @Transactional
     public int clearDraft(Integer year) {
+        requireDraftEditor();
         int planYear = year != null ? year : LocalDate.now().getYear() + 1;
         List<PurchasePlanItem> items = purchasePlanItemRepository.findDraftItemsByYear(planYear).stream()
                 .filter(item -> !Boolean.TRUE.equals(item.getDraftCleared()))
@@ -273,6 +335,7 @@ public class PurchasePlanDraftService {
         if (!Boolean.TRUE.equals(item.getIsDraft())) {
             throw new IllegalStateException("Исключить из планирования можно только позицию драфта плана закупок");
         }
+        requireDraftEditor();
         if (item.getSourceContractId() != null) {
             contractRepository.findById(item.getSourceContractId()).ifPresent(contract -> {
                 contract.setExcludedFromPlanning(excluded);
@@ -399,6 +462,19 @@ public class PurchasePlanDraftService {
     }
 
     /**
+     * Пользователь-закупщик из заявки на закупку (поле «Закупщик» заявки хранится строкой с ФИО).
+     *
+     * @return найденный пользователь или null, если заявки нет, закупщик в ней не указан или пользователь не найден
+     */
+    private User findPurchaserFromRequest(PurchaseRequest request, Map<String, Optional<User>> purchaserByName) {
+        if (request == null || !isNotBlank(request.getPurchaser())) {
+            return null;
+        }
+        return purchaserByName.computeIfAbsent(request.getPurchaser().trim(),
+                name -> Optional.ofNullable(purchasePlanItemService.findUserByPurchaserName(name))).orElse(null);
+    }
+
+    /**
      * Загружает заявки на закупку, связанные с отобранными договорами (одним запросом).
      */
     private Map<Long, PurchaseRequest> loadPurchaseRequests(List<Contract> contracts) {
@@ -419,9 +495,10 @@ public class PurchasePlanDraftService {
     /**
      * Собирает новую позицию драфта из договора и связанной заявки.
      */
-    private PurchasePlanItem buildDraftItem(Contract contract, PurchaseRequest request, int planYear) {
+    private PurchasePlanItem buildDraftItem(Contract contract, PurchaseRequest request, int planYear,
+                                            Map<String, Optional<User>> purchaserByName) {
         PurchasePlanItem item = new PurchasePlanItem();
-        fillDraftItem(item, contract, request, planYear);
+        fillDraftItem(item, contract, request, planYear, purchaserByName);
         return item;
     }
 
@@ -481,8 +558,11 @@ public class PurchasePlanDraftService {
 
     /**
      * Заполняет позицию драфта из договора и связанной заявки.
+     *
+     * @param purchaserByName кеш поиска пользователя по закупщику из заявки в рамках одного формирования
      */
-    private void fillDraftItem(PurchasePlanItem item, Contract contract, PurchaseRequest request, int planYear) {
+    private void fillDraftItem(PurchasePlanItem item, Contract contract, PurchaseRequest request, int planYear,
+                               Map<String, Optional<User>> purchaserByName) {
         item.setIsDraft(Boolean.TRUE);
         item.setSourceContractId(contract.getId());
         item.setYear(planYear);
@@ -559,7 +639,9 @@ public class PurchasePlanDraftService {
         if (item.getIsStrategicProduct() == null) {
             item.setIsStrategicProduct(contract.getIsStrategicProduct());
         }
-        // Закупщик в драфте не заполняется — назначается вручную
+        // Закупщик: из заявки, связанной с текущим договором; без заявки или если пользователь
+        // не найден — не назначен (закупщика назначают вручную)
+        item.setPurchaser(findPurchaserFromRequest(request, purchaserByName));
 
         item.setComment(buildComment(contract));
     }

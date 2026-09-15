@@ -21,8 +21,12 @@ export const ALL_STATUSES = [
   'Спецификация подписана',
   'Пусто', // null статусы
 ];
+// Статус позиции, исключённой из планирования (в драфте — «глазиком»)
+export const EXCLUDED_STATUS = 'Исключена';
+// Статус позиции, включённой в план (быстрый фильтр «Только в Плане»)
+export const IN_PLAN_STATUS = 'В плане';
 // Дефолтные статусы (все кроме "Исключена")
-export const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Исключена');
+export const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== EXCLUDED_STATUS);
 
 // Все колонки
 export const ALL_COLUMNS = [
@@ -186,3 +190,6 @@ export const COMPLEXITY_OPTIONS = [
   { value: '3', label: '3 — 22 р.д.' },
   { value: '4', label: '4 — 50 р.д.' },
 ];
+
+/** Подсказка у недоступных действий драфта для пользователей без прав */
+export const DRAFT_MANAGE_FORBIDDEN_TITLE = 'Доступно только закупщикам и администраторам';

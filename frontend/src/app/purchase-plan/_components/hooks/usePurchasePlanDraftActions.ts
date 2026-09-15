@@ -6,6 +6,8 @@ export interface DraftGenerationResult {
   contractsSelected: number;
   created: number;
   skipped: number;
+  /** Позициям, уже бывшим в драфте, назначен закупщик из связанной заявки */
+  purchasersFilled?: number;
 }
 
 interface UsePurchasePlanDraftActionsProps {
