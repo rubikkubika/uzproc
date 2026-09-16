@@ -3,10 +3,11 @@ import type { DeliveryQuery } from '../types/delivery-query.types';
 /**
  * Query-параметры фильтров поставок — общие для списка, счётчиков вкладок, ленты «По дням» и горизонта.
  * Лента и горизонт не должны сужаться собственным выбором, поэтому для них includeDaySelection = false.
+ * Они же показывают все поставки независимо от вкладки («В работе», «Закрыто» и т.д.) — для них includeTab = false.
  */
 export function buildDeliveryQueryParams(
   query: DeliveryQuery,
-  { includeDaySelection = true }: { includeDaySelection?: boolean } = {},
+  { includeDaySelection = true, includeTab = true }: { includeDaySelection?: boolean; includeTab?: boolean } = {},
 ): URLSearchParams {
   const params = new URLSearchParams();
 
@@ -23,7 +24,7 @@ export function buildDeliveryQueryParams(
   if (query.paymentScheme) params.append('paymentScheme', query.paymentScheme);
   if (query.shipmentStatus) params.append('shipmentStatus', query.shipmentStatus);
   // 'all' — вкладка «Все»: фильтра по состоянию нет, параметр не отправляем
-  if (query.tab && query.tab !== 'all') params.append('tab', query.tab);
+  if (includeTab && query.tab && query.tab !== 'all') params.append('tab', query.tab);
   if (query.overdue) params.append('overdue', 'true');
   if (query.deliveredYear !== null) params.append('deliveredYear', String(query.deliveredYear));
 

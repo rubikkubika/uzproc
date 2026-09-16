@@ -106,19 +106,25 @@ export const useDeliveryTable = () => {
     setCurrentPage(0);
   }, []);
 
-  /** Клик по дню ленты: выбирает день (null — снимает) и снимает группу горизонта */
+  /**
+   * Клик по дню ленты: выбирает день (null — снимает) и снимает группу горизонта.
+   * Лента считает все поставки без учёта вкладки — выбор дня переводит таблицу на «Все», чтобы число совпало.
+   */
   const selectPlannedDate = useCallback((date: string | null) => {
     setPlannedDate(date);
     setHorizon(null);
+    if (date) setActiveTab('all');
     setCurrentPage(0);
   }, []);
 
-  /** Клик по карточке горизонта: повторный клик снимает, выбор снимает день */
+  /** Клик по карточке горизонта: повторный клик снимает, выбор снимает день и переводит на «Все» (как день ленты) */
   const toggleHorizon = useCallback((key: HorizonKey) => {
-    setHorizon(prev => (prev === key ? null : key));
+    const next = horizon === key ? null : key;
+    setHorizon(next);
     setPlannedDate(null);
+    if (next) setActiveTab('all');
     setCurrentPage(0);
-  }, []);
+  }, [horizon]);
 
   const clearHorizon = useCallback(() => setHorizon(null), []);
 

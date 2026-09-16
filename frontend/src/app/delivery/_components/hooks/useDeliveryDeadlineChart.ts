@@ -19,7 +19,7 @@ interface Params {
 /**
  * Лента месяца в блоке «По дням»: по каждому дню — сколько ожидалось по плану и ещё не поставлено
  * и сколько поставлено по факту. Месяц переключается стрелками (с переходом через год),
- * фильтры таблицы передаются в запрос — лента показывает те же записи, что и таблица.
+ * фильтры таблицы передаются в запрос, кроме вкладки: лента показывает все поставки независимо от неё.
  */
 export function useDeliveryDeadlineChart({ query, reloadKey, selectedDate, onSelectDate }: Params) {
   const today = useMemo(() => startOfToday(), []);
@@ -60,7 +60,7 @@ export function useDeliveryDeadlineChart({ query, reloadKey, selectedDate, onSel
     onSelectDate(selectedDay === day ? null : toIsoDate(new Date(cursor.year, cursor.month - 1, day)));
   }, [selectedDay, cursor, onSelectDate]);
 
-  const paramsStr = buildDeliveryQueryParams(query, { includeDaySelection: false }).toString();
+  const paramsStr = buildDeliveryQueryParams(query, { includeDaySelection: false, includeTab: false }).toString();
 
   useEffect(() => {
     let cancelled = false;

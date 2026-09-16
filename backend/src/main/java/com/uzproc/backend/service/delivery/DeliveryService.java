@@ -282,7 +282,7 @@ public class DeliveryService {
             delivery.setPayments(linked);
         }
 
-        delivery.setStatus(resolveInitialStatus(scheme, linked));
+        delivery.setStatus(resolveInitialStatus(scheme, linked, delivery.getAmount()));
         applyDerivedShipmentStatus(delivery);
         refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
@@ -393,7 +393,7 @@ public class DeliveryService {
         if (autoDistribute) {
             autoDistributePayments(delivery, false);
         }
-        delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
+        delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments(), delivery.getAmount()));
         applyDerivedShipmentStatus(delivery);
         refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
@@ -755,7 +755,7 @@ public class DeliveryService {
                 }
             }
 
-            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), payments));
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), payments, delivery.getAmount()));
             applyDerivedShipmentStatus(delivery);
             refinePostpayAwaitingBalance(delivery);
             recomputeDeliveryDeadline(delivery);
@@ -906,7 +906,7 @@ public class DeliveryService {
                 // Часть оплат размечена, но пришли новые — доразмечаем только их
                 distributeRemainingPayments(delivery);
             }
-            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), deliveryPayments));
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), deliveryPayments, delivery.getAmount()));
             applyDerivedShipmentStatus(delivery);
         }
         // Статус отгрузки мог стать «Поставлено» (факт-дата/ЭСФ) уже после applyContractRules —
@@ -1089,7 +1089,7 @@ public class DeliveryService {
             }
             if (!changed) continue;
             d.setPayments(current);
-            d.setStatus(resolveInitialStatus(d.getPaymentScheme(), current));
+            d.setStatus(resolveInitialStatus(d.getPaymentScheme(), current, d.getAmount()));
             applyDerivedShipmentStatus(d);
             refinePostpayAwaitingBalance(d);
             deliveryRepository.save(d);
@@ -1117,7 +1117,7 @@ public class DeliveryService {
         for (Delivery d : deliveryRepository.findAll()) {
             DeliveryStatus oldStatus = d.getStatus();
             ShipmentStatus oldShipment = d.getShipmentStatus();
-            d.setStatus(resolveInitialStatus(d.getPaymentScheme(), d.getPayments()));
+            d.setStatus(resolveInitialStatus(d.getPaymentScheme(), d.getPayments(), d.getAmount()));
             applyDerivedShipmentStatus(d);
             refinePostpayAwaitingBalance(d);
             if (d.getStatus() != oldStatus || d.getShipmentStatus() != oldShipment) {
@@ -1158,7 +1158,7 @@ public class DeliveryService {
             }
 
             if (changed) {
-                d.setStatus(resolveInitialStatus(d.getPaymentScheme(), payments));
+                d.setStatus(resolveInitialStatus(d.getPaymentScheme(), payments, d.getAmount()));
                 applyDerivedShipmentStatus(d);
                 refinePostpayAwaitingBalance(d);
                 deliveryRepository.save(d);
@@ -1175,20 +1175,25 @@ public class DeliveryService {
      * Определяет статус оплаты поставки.
      * Схема «Аванс» (PREPAYMENT):
      *   оплачены и аванс, и платёж по факту (у обоих paymentDate) ⇒ PAID («Оплачено», зелёный);
+     *   распределённые оплаченные платежи покрывают сумму поставки ⇒ PAID (схема не соблюдена,
+     *   напр. вместо 88/12 прошёл один «Аванс» на всю сумму — доплачивать нечего);
      *   оплачен только аванс ⇒ ADVANCE_PAID («Аванс оплачен», зелёный);
      *   аванс не оплачен ⇒ ADVANCE_PREPARED («Оплата аванса», жёлтый).
      * Схема «По факту» (POSTPAYMENT):
      *   есть оплаченный платёж (paymentDate) ⇒ PAID («Оплачено», зелёный);
      *   оплат нет / не распределены ⇒ NOT_PAID («Не оплачено»).
      * Схема не выбрана ⇒ null (статус пустой).
+     *
+     * @param amount сумма поставки — для проверки полной оплаты (допуск {@link #distributionTolerance(BigDecimal)})
      */
-    private DeliveryStatus resolveInitialStatus(PaymentScheme scheme, Set<Payment> linked) {
+    private DeliveryStatus resolveInitialStatus(PaymentScheme scheme, Set<Payment> linked, BigDecimal amount) {
         if (scheme == PaymentScheme.PREPAYMENT) {
             boolean hasPaidAdvance = linked != null && linked.stream()
                     .anyMatch(p -> p.getPaymentType() == PaymentType.ADVANCE && p.getPaymentDate() != null);
             boolean hasPaidFact = linked != null && linked.stream()
                     .anyMatch(p -> p.getPaymentType() == PaymentType.FACT && p.getPaymentDate() != null);
             if (hasPaidAdvance && hasPaidFact) return DeliveryStatus.PAID;
+            if (hasPaidAdvance && isFullyPaid(linked, amount)) return DeliveryStatus.PAID;
             return hasPaidAdvance ? DeliveryStatus.ADVANCE_PAID : DeliveryStatus.ADVANCE_PREPARED;
         }
         if (scheme == PaymentScheme.POSTPAYMENT) {
@@ -1197,6 +1202,19 @@ public class DeliveryService {
             return hasPaid ? DeliveryStatus.PAID : DeliveryStatus.NOT_PAID;
         }
         return null;
+    }
+
+    /**
+     * Сумма оплаченных (paymentDate) и распределённых (Аванс / По факту) платежей покрывает
+     * сумму поставки с допуском на округление.
+     */
+    private static boolean isFullyPaid(Set<Payment> linked, BigDecimal amount) {
+        if (linked == null || amount == null || amount.signum() <= 0) return false;
+        BigDecimal paid = linked.stream()
+                .filter(p -> p.getPaymentType() != null && p.getPaymentDate() != null && p.getAmount() != null)
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return paid.compareTo(amount.subtract(distributionTolerance(amount))) >= 0;
     }
 
     /**
@@ -1292,7 +1310,7 @@ public class DeliveryService {
             }
         }
         delivery.setPayments(linked);
-        delivery.setStatus(resolveInitialStatus(scheme, linked));
+        delivery.setStatus(resolveInitialStatus(scheme, linked, delivery.getAmount()));
         applyDerivedShipmentStatus(delivery);
         refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
@@ -1328,7 +1346,7 @@ public class DeliveryService {
             }
         }
         delivery.setPayments(linked);
-        delivery.setStatus(resolveInitialStatus(null, linked));
+        delivery.setStatus(resolveInitialStatus(null, linked, delivery.getAmount()));
         applyDerivedShipmentStatus(delivery);
         refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
@@ -1444,7 +1462,7 @@ public class DeliveryService {
      */
     private void recalculatePaymentStatusAfterShipmentChange(Delivery delivery) {
         if (delivery.getPaymentScheme() != null) {
-            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments(), delivery.getAmount()));
             refinePostpayAwaitingBalance(delivery);
         }
     }

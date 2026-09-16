@@ -9,11 +9,12 @@ import { toHorizonCards } from '../utils/delivery-horizon.utils';
 
 /**
  * Горизонт «что горит»: просрочено → сегодня → ближайшие 7 дней → позже → без даты.
- * Считается по фильтрам таблицы без выбранного дня и группы, чтобы карточки не обнулялись собственным выбором.
+ * Считается по фильтрам таблицы без выбранного дня и группы, чтобы карточки не обнулялись собственным выбором,
+ * и без вкладки — как и лента, горизонт показывает все поставки.
  */
 export function useDeliveryHorizon(query: DeliveryQuery, reloadKey: number) {
   const [horizon, setHorizon] = useState<DeliveryHorizon | null>(null);
-  const paramsStr = buildDeliveryQueryParams(query, { includeDaySelection: false }).toString();
+  const paramsStr = buildDeliveryQueryParams(query, { includeDaySelection: false, includeTab: false }).toString();
 
   useEffect(() => {
     let cancelled = false;
