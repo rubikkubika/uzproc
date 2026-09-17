@@ -12,7 +12,7 @@ import {
 
 /**
  * Ознакомительный тур по разделу: для действующего плана и для драфта — свои шаги.
- * Режим берётся из PurchasePlanModeContext, запуск — кнопкой «Обучение» (tour.start).
+ * Режим берётся из PurchasePlanModeContext, запуск — кнопкой «?» (tour.start).
  */
 export function usePurchasePlanTour(): { tour: TourController; tourTitle: string } {
   const { isDraft } = usePurchasePlanMode();

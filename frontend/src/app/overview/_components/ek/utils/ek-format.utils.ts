@@ -18,11 +18,20 @@ export function formatAmountShort(value: number): string {
 export function currencySymbol(currency: string | null | undefined): string | null {
   if (!currency || currency === 'mixed') return null;
   const code = currency.trim().toUpperCase();
+  if (code === 'UZS' || code === 'СУМ' || code === 'СУММ' || code === 'SUM') return 'сум';
   if (code === 'RUB' || code === 'RUR' || code === '₽') return '₽';
   return code;
 }
 
-/** Полная сумма: «23 654 800 000 ₽» */
+/** Валюта в предложном падеже для подписи «Суммы в … по курсу» */
+export function currencyNamePrepositional(currency: string | null | undefined): string {
+  const symbol = currencySymbol(currency);
+  if (symbol === 'сум') return 'сумах';
+  if (symbol === '₽') return 'рублях';
+  return symbol ?? '';
+}
+
+/** Полная сумма: «23 654 800 000 сум» */
 export function formatAmountFull(value: number, currency: string | null): string {
   const amount = nf0.format(Math.round(value));
   return currency ? `${amount} ${currency}` : amount;

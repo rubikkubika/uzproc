@@ -1,14 +1,10 @@
 import type { DeliveryQuery } from '../types/delivery-query.types';
 
 /**
- * Query-параметры фильтров поставок — общие для списка, счётчиков вкладок, ленты «По дням» и горизонта.
- * Лента и горизонт не должны сужаться собственным выбором, поэтому для них includeDaySelection = false.
- * Они же показывают все поставки независимо от вкладки («В работе», «Закрыто» и т.д.) — для них includeTab = false.
+ * Query-параметры фильтров списка поставок: фильтры, год, вкладка, выбранный день ленты или карточка горизонта.
+ * Горизонт и лента месяца считаются по всем поставкам и эти параметры не используют.
  */
-export function buildDeliveryQueryParams(
-  query: DeliveryQuery,
-  { includeDaySelection = true, includeTab = true }: { includeDaySelection?: boolean; includeTab?: boolean } = {},
-): URLSearchParams {
+export function buildDeliveryQueryParams(query: DeliveryQuery): URLSearchParams {
   const params = new URLSearchParams();
 
   Object.entries(query.filters).forEach(([key, value]) => {
@@ -24,14 +20,12 @@ export function buildDeliveryQueryParams(
   if (query.paymentScheme) params.append('paymentScheme', query.paymentScheme);
   if (query.shipmentStatus) params.append('shipmentStatus', query.shipmentStatus);
   // 'all' — вкладка «Все»: фильтра по состоянию нет, параметр не отправляем
-  if (includeTab && query.tab && query.tab !== 'all') params.append('tab', query.tab);
+  if (query.tab && query.tab !== 'all') params.append('tab', query.tab);
   if (query.overdue) params.append('overdue', 'true');
   if (query.deliveredYear !== null) params.append('deliveredYear', String(query.deliveredYear));
 
-  if (includeDaySelection) {
-    if (query.plannedDate) params.append('plannedDeliveryDate', query.plannedDate);
-    if (query.horizon) params.append('horizon', query.horizon);
-  }
+  if (query.plannedDate) params.append('plannedDeliveryDate', query.plannedDate);
+  if (query.horizon) params.append('horizon', query.horizon);
 
   return params;
 }

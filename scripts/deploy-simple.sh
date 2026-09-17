@@ -118,7 +118,24 @@ echo "Files copied to server"
 
 echo ""
 echo "Step 6: Updating containers on server..."
-ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose down && docker load -i uzproc-frontend.tar && docker load -i uzproc-backend.tar && docker load -i uzproc-invoice-parser.tar && rm -f uzproc-frontend.tar uzproc-backend.tar uzproc-invoice-parser.tar && docker compose up -d --no-build && docker compose ps"
+# Каталог данных ЭТП: создаём и отдаём пользователю контейнера frontend (uid 1001) через одноразовый контейнер (без sudo)
+ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && mkdir -p etp-data && docker run --rm -v $REMOTE_PATH/etp-data:/data alpine chown -R 1001:1001 /data"
+ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose down && docker load -i uzproc-frontend.tar && docker load -i uzproc-backend.tar && docker load -i uzproc-invoice-parser.tar && rm -f uzproc-frontend.tar uzproc-backend.tar uzproc-invoice-parser.tar && docker compose up -d --no-build && docker compose ps" || {
+  echo ""
+  echo "ERROR: failed to update containers on server — services may be down."
+  echo "Check: ssh $SERVER 'cd $REMOTE_PATH && docker compose ps -a' and retry: docker compose up -d --no-build"
+  exit 1
+}
+
+echo ""
+echo "Step 7: Starting ETP (b2biz.uz) sync in background..."
+# Один раз при деплое; дальше — кнопкой на странице ЭТП. Деплой не ждёт окончания,
+# прогресс виден на странице ЭТП, лог — в etp-data/logs на сервере
+if ssh -o ConnectTimeout=10 "$SERVER" "sleep 5 && docker exec -d -e ETP_SYNC_STARTED_BY=deploy uzproc-frontend node scripts/etp-sync.mjs"; then
+  echo "ETP sync started (progress on the ETP page, logs: ${REMOTE_PATH}/etp-data/logs)"
+else
+  echo "Warning: failed to start ETP sync, run it with the button on the ETP page"
+fi
 
 echo ""
 echo "Deployment completed successfully!"

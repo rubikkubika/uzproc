@@ -3,13 +3,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import type { DeliveryDeadlineHistogram, RibbonDayView, RibbonLegend } from '../types/delivery-deadline-chart.types';
-import type { DeliveryQuery } from '../types/delivery-query.types';
-import { buildDeliveryQueryParams } from '../utils/delivery-query.utils';
 import { parseIsoDate, startOfToday, toIsoDate } from '../utils/date.utils';
 import { MONTH_NOMINATIVE_LABELS, WEEKDAY_SHORT_LABELS } from '../constants/delivery-deadline-chart.constants';
 
 interface Params {
-  query: DeliveryQuery;
   reloadKey: number;
   /** Выбранный день (ISO) — хранится в таблице, т.к. фильтрует список */
   selectedDate: string | null;
@@ -17,11 +14,11 @@ interface Params {
 }
 
 /**
- * Лента месяца в блоке «По дням»: по каждому дню — сколько ожидалось по плану и ещё не поставлено
- * и сколько поставлено по факту. Месяц переключается стрелками (с переходом через год),
- * фильтры таблицы передаются в запрос, кроме вкладки: лента показывает все поставки независимо от неё.
+ * Лента месяца над таблицей: по каждому дню — сколько ожидалось по плану и ещё не поставлено
+ * и сколько поставлено по факту. Месяц переключается только стрелками (с переходом через год).
+ * Считается по всем поставкам: фильтры таблицы (в т.ч. год) и вкладка на ленту не влияют.
  */
-export function useDeliveryDeadlineChart({ query, reloadKey, selectedDate, onSelectDate }: Params) {
+export function useDeliveryDeadlineChart({ reloadKey, selectedDate, onSelectDate }: Params) {
   const today = useMemo(() => startOfToday(), []);
   // Лента открывается на месяце выбранного дня (например, после возврата со страницы договора), иначе — на текущем
   const [cursor, setCursor] = useState(() => {
@@ -29,14 +26,6 @@ export function useDeliveryDeadlineChart({ query, reloadKey, selectedDate, onSel
     return { year: start.getFullYear(), month: start.getMonth() + 1 };
   });
   const [histogram, setHistogram] = useState<DeliveryDeadlineHistogram | null>(null);
-
-  // Выбран конкретный год в фильтре дат — лента переходит в него (месяц сохраняется).
-  // Корректировка состояния при рендере вместо эффекта: лишнего прохода рендера не будет.
-  const [syncedYear, setSyncedYear] = useState(query.year);
-  if (syncedYear !== query.year) {
-    setSyncedYear(query.year);
-    if (query.year !== null && query.year !== cursor.year) setCursor(c => ({ ...c, year: query.year as number }));
-  }
 
   const shiftMonth = useCallback((delta: number) => {
     setCursor(({ year, month }) => {
@@ -60,13 +49,9 @@ export function useDeliveryDeadlineChart({ query, reloadKey, selectedDate, onSel
     onSelectDate(selectedDay === day ? null : toIsoDate(new Date(cursor.year, cursor.month - 1, day)));
   }, [selectedDay, cursor, onSelectDate]);
 
-  const paramsStr = buildDeliveryQueryParams(query, { includeDaySelection: false, includeTab: false }).toString();
-
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams(paramsStr);
-    params.append('year', String(cursor.year));
-    params.append('month', String(cursor.month));
+    const params = new URLSearchParams({ year: String(cursor.year), month: String(cursor.month) });
     fetch(`${getBackendUrl()}/api/deliveries/deadline-histogram?${params.toString()}`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -78,7 +63,7 @@ export function useDeliveryDeadlineChart({ query, reloadKey, selectedDate, onSel
         if (!cancelled) setHistogram(null);
       });
     return () => { cancelled = true; };
-  }, [cursor, paramsStr, reloadKey]);
+  }, [cursor, reloadKey]);
 
   const days: RibbonDayView[] = useMemo(() => (histogram?.days ?? []).map(({ day, count, deliveredCount }) => {
     const date = new Date(cursor.year, cursor.month - 1, day);

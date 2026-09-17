@@ -37,6 +37,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Копируем папку images с CSV файлами
 COPY --from=builder --chown=nextjs:nodejs /app/images ./images
+# Скрипт синхронизации ЭТП (запускается кнопкой на странице ЭТП и при деплое)
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 USER nextjs
 

@@ -20,7 +20,8 @@ export const TEXT_FIELDS = [
  */
 export const CONTRACTS_COLUMN_WIDTHS = {
   eye: 46,
-  remarks: 62,
+  /** По ширине кнопки-облачка с двузначным числом (46px) + отступы ячейки */
+  remarks: 56,
   innerId: 118,
   organization: 104,
   purchaseRequestInnerId: 56,

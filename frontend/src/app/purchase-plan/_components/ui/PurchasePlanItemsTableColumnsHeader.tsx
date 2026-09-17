@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageCircle, Factory, Eye, CircleCheck } from 'lucide-react';
+import { MessageSquare, Factory, Eye, CircleCheck } from 'lucide-react';
 import { ALL_COLUMNS, PurchaserCheckedFilterValue } from '../constants/purchase-plan-items.constants';
 import PurchasePlanPurchaserCheckedFilterButton from './PurchasePlanPurchaserCheckedFilterButton';
 import { SortField, SortDirection } from '../types/purchase-plan-items.types';
@@ -251,7 +251,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
               >
                 <div className="flex items-center justify-center min-h-[20px]">
                   <span className="min-h-[16px] flex items-center justify-center" title="Комментарии">
-                    <MessageCircle className="w-4 h-4 text-gray-500" aria-hidden />
+                    <MessageSquare className="w-4 h-4 text-gray-500" aria-hidden />
                   </span>
                 </div>
                 {columnKey && handleResizeStart && (

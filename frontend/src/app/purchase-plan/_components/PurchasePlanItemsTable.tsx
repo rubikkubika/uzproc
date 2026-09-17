@@ -1130,7 +1130,7 @@ function PurchasePlanItemsTableContent() {
         onClose={() => table.versions.setIsVersionsListModalOpen(false)}
       />
 
-      {/* Ознакомительный тур по разделу (кнопка «Обучение» — справа от сводки) */}
+      {/* Ознакомительный тур по разделу (кнопка «?» — в правом верхнем углу, справа от сводки) */}
       <Tour tour={tour} title={tourTitle} />
       </div>
   );

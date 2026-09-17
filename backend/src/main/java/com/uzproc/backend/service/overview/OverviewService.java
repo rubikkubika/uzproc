@@ -980,9 +980,9 @@ public class OverviewService {
         // Нужен ли перевод по курсу: есть ли заявки с валютой, отличной от базовой
         boolean needsConversion = list.stream()
                 .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequest::getCurrency)
-                .filter(c -> c != null && !c.isBlank())
-                .map(String::trim)
-                .anyMatch(c -> !c.equalsIgnoreCase(baseCurrency));
+                .map(OverviewEkProperties::normalizeCurrency)
+                .filter(c -> c != null)
+                .anyMatch(c -> !c.equals(baseCurrency));
         boolean amountsInBaseCurrency = needsConversion;
 
         // Группировка по ЦФО (имя cfo берём из предзагруженной связи)
@@ -1016,8 +1016,8 @@ public class OverviewService {
             }
             Set<String> currenciesInGroup = group.stream()
                     .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequest::getCurrency)
-                    .filter(c -> c != null && !c.isBlank())
-                    .map(String::trim)
+                    .map(OverviewEkProperties::normalizeCurrency)
+                    .filter(c -> c != null)
                     .collect(Collectors.toSet());
             String rowCurrency = amountsInBaseCurrency
                     ? baseCurrency
@@ -1036,7 +1036,7 @@ public class OverviewService {
         rows.sort(Comparator.comparing(OverviewEkChartRowDto::getCfo, Comparator.nullsLast(Comparator.naturalOrder())));
         logger.debug("Overview EK chart for year {}: {} CFO rows (yearType={}, amountsInBaseCurrency={})",
                 year, rows.size(), yearType, amountsInBaseCurrency);
-        // Курсы для подсказки «Суммы в RUB по курсу»: без базовой валюты и её синонимов (курс 1)
+        // Курсы для подсказки «Суммы в сумах по курсу»: без базовой валюты и её синонимов (курс 1)
         Map<String, BigDecimal> exchangeRates = new TreeMap<>();
         if (amountsInBaseCurrency) {
             overviewEkProperties.getExchangeRates().forEach((currency, rate) -> {

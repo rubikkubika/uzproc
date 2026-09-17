@@ -10,24 +10,24 @@ import java.util.Map;
 
 /**
  * Настройки вкладки ЕК (Обзор): базовая валюта и курсы для перевода сумм.
- * Курс — сколько единиц базовой валюты за 1 единицу валюты (например 1 USD = 100 RUB).
+ * Курс — сколько единиц базовой валюты за 1 единицу валюты (например 1 USD = 11 797 UZS).
+ * Коды валют нормализуются: «СУМ», «СУММ», «SUM» → UZS; «RUR» → RUB.
  */
 @Component
 @ConfigurationProperties(prefix = "app.overview.ek")
 public class OverviewEkProperties {
 
     /** Базовая валюта, в которую приводятся суммы при разных валютах в заявках. */
-    private String baseCurrency = "RUB";
+    private String baseCurrency = "UZS";
 
     /** Курсы: код валюты -> курс к базовой (за 1 единицу валюты). */
     private Map<String, BigDecimal> exchangeRates = defaultRates();
 
     private static Map<String, BigDecimal> defaultRates() {
         Map<String, BigDecimal> m = new HashMap<>();
-        m.put("RUB", BigDecimal.ONE);
-        m.put("RUR", BigDecimal.ONE);
-        m.put("USD", new BigDecimal("100"));
-        m.put("EUR", new BigDecimal("105"));
+        m.put("USD", new BigDecimal("11797.46"));
+        m.put("EUR", new BigDecimal("13608.37"));
+        m.put("RUB", new BigDecimal("139.77"));
         return m;
     }
 
@@ -36,7 +36,8 @@ public class OverviewEkProperties {
     }
 
     public void setBaseCurrency(String baseCurrency) {
-        this.baseCurrency = baseCurrency != null ? baseCurrency.trim().toUpperCase() : "RUB";
+        String normalized = normalizeCurrency(baseCurrency);
+        this.baseCurrency = normalized != null ? normalized : "UZS";
     }
 
     public Map<String, BigDecimal> getExchangeRates() {
@@ -44,9 +45,29 @@ public class OverviewEkProperties {
     }
 
     public void setExchangeRates(Map<String, BigDecimal> exchangeRates) {
-        this.exchangeRates = exchangeRates != null && !exchangeRates.isEmpty()
-                ? exchangeRates
-                : defaultRates();
+        if (exchangeRates == null || exchangeRates.isEmpty()) {
+            this.exchangeRates = defaultRates();
+            return;
+        }
+        Map<String, BigDecimal> normalized = new HashMap<>();
+        exchangeRates.forEach((currency, rate) -> normalized.put(normalizeCurrency(currency), rate));
+        this.exchangeRates = normalized;
+    }
+
+    /**
+     * Приводит код валюты к единому виду: верхний регистр, синонимы сума («СУМ», «СУММ», «SUM») → UZS,
+     * «RUR» → RUB. Пустое значение → null.
+     */
+    public static String normalizeCurrency(String currency) {
+        if (currency == null || currency.isBlank()) {
+            return null;
+        }
+        String code = currency.trim().toUpperCase();
+        return switch (code) {
+            case "СУМ", "СУММ", "SUM" -> "UZS";
+            case "RUR" -> "RUB";
+            default -> code;
+        };
     }
 
     /**
@@ -57,14 +78,11 @@ public class OverviewEkProperties {
         if (currency == null || currency.isBlank()) {
             return BigDecimal.ONE;
         }
-        String key = currency.trim().toUpperCase();
+        String key = normalizeCurrency(currency);
         if (key.equals(getBaseCurrency())) {
             return BigDecimal.ONE;
         }
         BigDecimal rate = exchangeRates.get(key);
-        if (rate == null) {
-            rate = exchangeRates.get(currency.trim());
-        }
         return rate != null && rate.compareTo(BigDecimal.ZERO) > 0
                 ? rate
                 : BigDecimal.ONE;

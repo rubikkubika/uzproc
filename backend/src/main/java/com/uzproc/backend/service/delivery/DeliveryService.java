@@ -926,13 +926,21 @@ public class DeliveryService {
      * (paymentTerms) договора. Логика:
      *   • «Постоплата - 100%» (без аванса/предоплаты) → «0/100/10 д.» (срок не важен);
      *   • иначе: аванс % = первый процент из «Схемы оплаты», доплата = 100 − аванс,
-     *     срок = первое число из «Условий оплаты» → точный матч в справочнике по (аванс, доплата, срок).
+     *     срок = первое число из «Условий оплаты» → матч в справочнике по (аванс, доплата, срок).
+     *     Тип дней при матче не обязателен (иначе у существующих поставок «10 банковских дней»
+     *     сменились бы исторические схемы «… д.»): при нескольких совпадениях предпочитаем схему
+     *     с типом дней из условий («банковских/рабочих/б.д.» или «календарных»).
      *   • неоднозначность «30/70/10 д.» vs «30/30/40/10 д.» — по числу долей в «Схеме оплаты».
-     * Если точного совпадения нет — возвращает null (схема остаётся не выбранной, «не трогаем»).
+     *   • Совпадения нет, но условия договора однозначны (проценты в сумме 100, срок и тип дней
+     *     распознаны) — схема создаётся в справочнике (см. {@link #createSchemeFromContract})
+     *     и добавляется в schemes, чтобы следующие поставки в том же прогоне её переиспользовали.
+     * Если условия неоднозначны — возвращает null (схема остаётся не выбранной, «не трогаем»).
+     *
+     * @param schemes изменяемый список активных схем; при создании новая схема добавляется в него
      */
     private DeliveryPaymentScheme autoSchemeForContract(String contractScheme, String contractTerms,
                                                         List<DeliveryPaymentScheme> schemes) {
-        if (schemes == null || schemes.isEmpty()) return null;
+        if (schemes == null) return null;
         String s = (contractScheme == null) ? "" : contractScheme.trim().replaceAll("\\s+", " ").toLowerCase();
 
         // Полная постоплата → «0/100/10 д.» (срок не учитываем).
@@ -950,19 +958,78 @@ public class DeliveryService {
 
         Integer term = extractFirstInt(contractTerms);
         if (term == null) return null;
+        String dayType = detectDayType(contractTerms);
 
         List<DeliveryPaymentScheme> matches = schemes.stream()
                 .filter(x -> eqInt(x.getAdvancePercent(), advance)
                         && eqInt(x.getFinalPercent(), balance)
                         && eqInt(x.getTermDays(), term))
                 .collect(Collectors.toList());
-        if (matches.isEmpty()) return null;
+        if (matches.isEmpty()) {
+            return createSchemeFromContract(pcts, advance, balance, term, dayType, schemes);
+        }
         if (matches.size() == 1) return matches.get(0);
-        // Неоднозначность (напр. 30/70/10): 3 доли → «30/30/40/10 д.», иначе 2-этапная.
+        // Неоднозначность (напр. 30/70/10): 3 доли → «30/30/40/10 д.», иначе 2-этапная;
+        // среди подходящих по числу долей — схема с тем же типом дней, что в условиях договора.
         boolean threeStage = stages >= 3;
-        return matches.stream()
+        List<DeliveryPaymentScheme> byStages = matches.stream()
                 .filter(x -> isMultiStageLabel(x.getLabel()) == threeStage)
-                .findFirst().orElse(matches.get(0));
+                .collect(Collectors.toList());
+        List<DeliveryPaymentScheme> candidates = byStages.isEmpty() ? matches : byStages;
+        return candidates.stream()
+                .filter(x -> dayType != null && dayType.equalsIgnoreCase(x.getDayType()))
+                .findFirst().orElse(candidates.get(0));
+    }
+
+    /** Максимальный срок, при котором схему можно создать автоматически (защита от мусора в условиях). */
+    private static final int MAX_AUTO_SCHEME_TERM_DAYS = 365;
+
+    /**
+     * Создаёт схему оплаты в справочнике по однозначным условиям договора.
+     * Ярлык — в формате справочника: доли через «/», срок и «б.д.»/«д.» (напр. «30/70/15 д.»,
+     * «30/30/40/10 б.д.»). Не создаёт, если тип дней не распознан, срок вне 1..365
+     * или несколько долей не дают в сумме 100%.
+     */
+    private DeliveryPaymentScheme createSchemeFromContract(List<Integer> pcts, int advance, int balance, int term,
+                                                           String dayType, List<DeliveryPaymentScheme> schemes) {
+        if (dayType == null || term <= 0 || term > MAX_AUTO_SCHEME_TERM_DAYS) return null;
+        boolean multiShare = pcts.size() >= 2;
+        if (multiShare && pcts.stream().mapToInt(Integer::intValue).sum() != 100) return null;
+
+        String shares = multiShare
+                ? pcts.stream().map(String::valueOf).collect(Collectors.joining("/"))
+                : advance + "/" + balance;
+        String label = shares + "/" + term + ("WORKING".equals(dayType) ? " б.д." : " д.");
+        int sortOrder = schemes.stream()
+                .map(DeliveryPaymentScheme::getSortOrder)
+                .filter(java.util.Objects::nonNull)
+                .max(Integer::compare).orElse(0) + 1;
+
+        DeliveryPaymentScheme scheme = new DeliveryPaymentScheme();
+        scheme.setLabel(label);
+        scheme.setAdvancePercent(advance);
+        scheme.setFinalPercent(balance);
+        scheme.setTermDays(term);
+        scheme.setDayType(dayType);
+        scheme.setPaymentType(advance > 0 ? PaymentScheme.PREPAYMENT.name() : PaymentScheme.POSTPAYMENT.name());
+        scheme.setSortOrder(sortOrder);
+        scheme.setActive(true);
+        DeliveryPaymentScheme saved = paymentSchemeRepository.save(scheme);
+        schemes.add(saved);
+        logger.info("Payment scheme auto-created from contract terms: id={} label='{}'", saved.getId(), label);
+        return saved;
+    }
+
+    /**
+     * Тип дней из «Условий оплаты»: банковские/рабочие/«б.д.» → WORKING, календарные/«к.д.» → CALENDAR.
+     * Просто «дней» без уточнения — null (тип не определён).
+     */
+    private String detectDayType(String terms) {
+        if (terms == null) return null;
+        String t = terms.toLowerCase().replaceAll("\\s+", "");
+        if (t.contains("банков") || t.contains("рабоч") || t.contains("б.д") || t.contains("бд")) return "WORKING";
+        if (t.contains("календар") || t.contains("к.д") || t.contains("кд")) return "CALENDAR";
+        return null;
     }
 
     /** Все проценты из строки по порядку: «Аванс - 30% ... 70%» → [30,70]; «30% 30% 40%» → [30,30,40]. */

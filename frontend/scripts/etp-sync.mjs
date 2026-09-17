@@ -8,9 +8,17 @@
  *    или в прошлом снапшоте была незавершённой (не complete);
  *  - файлы, файлы КП и отчёты скачиваются только те, которых нет на диске.
  *
- * Запуск (Git Bash):
- *   B2BIZ_LOGIN=... B2BIZ_PASSWORD=... node scripts/etp-sync.mjs --dry-run
- *   B2BIZ_LOGIN=... B2BIZ_PASSWORD=... node scripts/etp-sync.mjs
+ * Данные пишутся в ETP_DATA_DIR (по умолчанию frontend/etp-data): data.json, files/,
+ * participant-files/, reports/. Их отдаёт маршрут Next.js /etp/[...path] с проверкой авторизации.
+ *
+ * Ход выполнения пишется в ETP_DATA_DIR/sync-status.json — его читает кнопка «Обновить»
+ * на странице ЭТП (GET /api/etp/sync). Одновременно может идти только одна синхронизация.
+ * Лог каждого запуска — ETP_DATA_DIR/logs/etp-sync-YYYY-MM-DD-HH-mm-ss.log, хранятся последние 5.
+ *
+ * Запускается: кнопкой на странице ЭТП (POST /api/etp/sync), один раз при деплое
+ * (deploy-simple.sh) или вручную (Git Bash, из корня проекта):
+ *   ./scripts/etp-update.sh --dry-run
+ *   ./scripts/etp-update.sh
  *
  * Флаги:
  *   --dry-run      только показать план обновления, ничего не качать и не писать
@@ -21,21 +29,29 @@
  *   --probe GUID   сохранить сырые ответы API по одной процедуре в etp/probe-<guid>.json
  */
 
-import { readFile, writeFile, rename, mkdir, access, readdir } from 'node:fs/promises';
-import { createWriteStream } from 'node:fs';
+import { readFile, writeFile, rename, mkdir, access, readdir, unlink } from 'node:fs/promises';
+import { createWriteStream, appendFileSync, mkdirSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 // ─────────────────────────────── Конфигурация ───────────────────────────────
 
+/** Корень frontend (скрипт лежит в frontend/scripts) */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Подхватываем переменные из .env в корне проекта (значения из окружения имеют приоритет). */
+/** Подхватываем переменные из .env frontend и корня проекта (значения из окружения имеют приоритет). */
 async function loadDotEnv() {
+  for (const envPath of [path.join(ROOT, '.env'), path.join(ROOT, '..', '.env')]) {
+    await loadDotEnvFile(envPath);
+  }
+}
+
+async function loadDotEnvFile(envPath) {
   try {
-    const raw = await readFile(path.join(ROOT, '.env'), 'utf8');
+    const raw = await readFile(envPath, 'utf8');
     for (const line of raw.split('\n')) {
       const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
       if (!m) continue;
@@ -49,11 +65,15 @@ async function loadDotEnv() {
   }
 }
 await loadDotEnv();
-const SNAPSHOT_PATH = path.join(ROOT, 'frontend/public/etp/data.json');
-const FILES_DIR = path.join(ROOT, 'frontend/public/etp/files');
-const PARTICIPANT_FILES_DIR = path.join(ROOT, 'frontend/public/etp/participant-files');
-const REPORTS_DIR = path.join(ROOT, 'frontend/public/etp/reports');
-const PROBE_DIR = path.join(ROOT, 'etp');
+const DATA_DIR = path.resolve(process.env.ETP_DATA_DIR || path.join(ROOT, 'etp-data'));
+const SNAPSHOT_PATH = path.join(DATA_DIR, 'data.json');
+const FILES_DIR = path.join(DATA_DIR, 'files');
+const PARTICIPANT_FILES_DIR = path.join(DATA_DIR, 'participant-files');
+const REPORTS_DIR = path.join(DATA_DIR, 'reports');
+const PROBE_DIR = path.join(DATA_DIR, 'probe');
+const STATUS_PATH = path.join(DATA_DIR, 'sync-status.json');
+const LOGS_DIR = path.join(DATA_DIR, 'logs');
+const MAX_LOGS = 5;
 
 const API = process.env.B2BIZ_API || 'https://b2biz.uz/api/v1';
 const CUSTOMER = process.env.B2BIZ_CUSTOMER || 'UZUM MARKET';
@@ -100,8 +120,127 @@ const OPTIONS = {
   probe: flagValue('--probe') || null,
 };
 
-const log = (...args) => console.log(...args);
-const warn = (...args) => console.warn('⚠️ ', ...args);
+// ──────────────────────────────── Лог и статус ──────────────────────────────
+
+/** Файл лога текущего запуска (null — не пишем: --dry-run / --probe) */
+let logFile = null;
+
+const writeLogLine = (line) => {
+  if (!logFile) return;
+  try {
+    appendFileSync(logFile, `${line}\n`, 'utf8');
+  } catch {
+    // Лог не критичен — продолжаем без него
+  }
+};
+const log = (...args) => {
+  console.log(...args);
+  writeLogLine(args.join(' '));
+};
+const warn = (...args) => {
+  console.warn('⚠️ ', ...args);
+  writeLogLine(`⚠️  ${args.join(' ')}`);
+};
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const timestampForFile = (d = new Date()) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}-` +
+  `${pad2(d.getHours())}-${pad2(d.getMinutes())}-${pad2(d.getSeconds())}`;
+
+/** Создаёт лог запуска и удаляет старые, оставляя последние MAX_LOGS. */
+async function openLogFile() {
+  mkdirSync(LOGS_DIR, { recursive: true });
+  logFile = path.join(LOGS_DIR, `etp-sync-${timestampForFile()}.log`);
+  const logs = (await readdir(LOGS_DIR)).filter((f) => /^etp-sync-.*\.log$/.test(f)).sort();
+  for (const old of logs.slice(0, Math.max(0, logs.length - MAX_LOGS))) {
+    await unlink(path.join(LOGS_DIR, old)).catch(() => {});
+  }
+}
+
+/**
+ * Статус синхронизации для кнопки на странице ЭТП.
+ * state: running | success | error; phase: login | list | procedures | saving | done.
+ */
+const status = {
+  state: 'running',
+  phase: 'login',
+  startedAt: new Date().toISOString(),
+  finishedAt: null,
+  startedBy: process.env.ETP_SYNC_STARTED_BY || 'manual',
+  pid: process.pid,
+  /** Хост (в Docker — id контейнера): pid имеет смысл только в пределах одного хоста */
+  host: os.hostname(),
+  proceduresTotal: 0,
+  proceduresDone: 0,
+  downloadedFiles: 0,
+  snapshotCount: null,
+  message: '',
+  error: null,
+};
+/** Писать ли статус (не пишем в --dry-run / --probe) */
+let statusEnabled = false;
+let statusWriteTimer = null;
+const STATUS_WRITE_INTERVAL_MS = 1000;
+
+/** Атомарная запись статуса (tmp + rename), чтобы API не прочитал половину файла. */
+async function writeStatusNow() {
+  if (!statusEnabled) return;
+  if (statusWriteTimer) {
+    clearTimeout(statusWriteTimer);
+    statusWriteTimer = null;
+  }
+  const tmp = `${STATUS_PATH}.${process.pid}.tmp`;
+  try {
+    await writeFile(tmp, JSON.stringify(status), 'utf8');
+    await rename(tmp, STATUS_PATH);
+  } catch (e) {
+    console.warn('⚠️  Не удалось записать статус:', e.message);
+  }
+}
+
+/** Обновление статуса: фаза/итог пишутся сразу, счётчики — не чаще раза в секунду. */
+function updateStatus(patch, { immediate = false } = {}) {
+  Object.assign(status, patch);
+  if (!statusEnabled) return Promise.resolve();
+  if (immediate) return writeStatusNow();
+  if (!statusWriteTimer) {
+    statusWriteTimer = setTimeout(() => {
+      statusWriteTimer = null;
+      writeStatusNow();
+    }, STATUS_WRITE_INTERVAL_MS);
+  }
+  return Promise.resolve();
+}
+
+const isProcessAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    // EPERM — процесс есть, но чужой
+    return e.code === 'EPERM';
+  }
+};
+
+/** Не запускаемся, если другая синхронизация ещё идёт (по статусу и живому pid). */
+async function ensureNotRunning() {
+  try {
+    const prev = JSON.parse(await readFile(STATUS_PATH, 'utf8'));
+    const sameHost = !prev?.host || prev.host === os.hostname();
+    if (
+      prev?.state === 'running' &&
+      sameHost &&
+      prev.pid &&
+      prev.pid !== process.pid &&
+      isProcessAlive(prev.pid)
+    ) {
+      console.error(`❌ Синхронизация ЭТП уже выполняется (pid ${prev.pid}, запущена ${prev.startedAt})`);
+      process.exit(2);
+    }
+  } catch {
+    // Статуса нет или он битый — можно запускаться
+  }
+}
 
 // ─────────────────────────────── HTTP / авторизация ─────────────────────────
 
@@ -303,6 +442,7 @@ async function saveSnapshot(rawProcedures) {
     `💾 Снапшот сохранён: ${snapshot.count} процедур · ${filesTotal} док. · ` +
       `${participantFilesTotal} файлов КП · ${competitionCount} конкурентных листов`
   );
+  return snapshot.count;
 }
 
 // ──────────────────────────── Список процедур ЭТП ───────────────────────────
@@ -627,6 +767,7 @@ async function downloadIfMissing(url, targetPath) {
   const res = await apiGet(url, { raw: true });
   await mkdir(path.dirname(targetPath), { recursive: true });
   await pipeline(Readable.fromWeb(res.body), createWriteStream(targetPath));
+  updateStatus({ downloadedFiles: status.downloadedFiles + 1 });
   return true;
 }
 
@@ -724,6 +865,15 @@ async function probe(guid) {
 // ──────────────────────────────── Основной поток ────────────────────────────
 
 async function main() {
+  await mkdir(DATA_DIR, { recursive: true });
+  await ensureNotRunning();
+  if (!OPTIONS.dryRun && !OPTIONS.probe) {
+    await openLogFile();
+    statusEnabled = true;
+    await updateStatus({ phase: 'login', message: 'Авторизация на b2biz.uz' }, { immediate: true });
+  }
+  log(`📁 Каталог данных: ${DATA_DIR}`);
+
   await login();
 
   if (OPTIONS.probe) {
@@ -731,6 +881,7 @@ async function main() {
     return;
   }
 
+  await updateStatus({ phase: 'list', message: 'Получение списка процедур' }, { immediate: true });
   const snapshot = await loadSnapshot();
   const oldByGuid = new Map(snapshot.procedures.map((p) => [p.guid, p]));
   const oldByCode = new Map(snapshot.procedures.map((p) => [p.code, p]));
@@ -757,19 +908,26 @@ async function main() {
   }
 
   const work = OPTIONS.limit ? plan.slice(0, OPTIONS.limit) : plan;
-  let downloadedFiles = 0;
+  await updateStatus(
+    { phase: 'procedures', proceduresTotal: work.length, proceduresDone: 0, message: 'Обновление процедур' },
+    { immediate: true }
+  );
 
   const updated = await mapLimit(work, CONCURRENCY, async (item, i) => {
     const label = item.row.code || item.row.guid;
     try {
       const procedure = await fetchProcedure(item.row.guid, item.row, item.old);
-      if (!OPTIONS.noFiles) downloadedFiles += await syncProcedureFiles(procedure, item.old);
+      // Счётчик скачанных файлов ведёт downloadIfMissing (status.downloadedFiles): `x += await …`
+      // при параллельной обработке терял прибавления
+      if (!OPTIONS.noFiles) await syncProcedureFiles(procedure, item.old);
       else procedure.participantFilesCount = item.old?.participantFilesCount ?? 0;
       log(`   ✓ [${i + 1}/${work.length}] ${label}`);
       return procedure;
     } catch (e) {
       warn(`[${i + 1}/${work.length}] ${label}: ${e.message} — оставляем прежнюю версию`);
       return item.old || null;
+    } finally {
+      updateStatus({ proceduresDone: status.proceduresDone + 1, message: `Процедура ${label}` });
     }
   });
 
@@ -777,11 +935,37 @@ async function main() {
   const result = new Map(snapshot.procedures.map((p) => [p.guid, p]));
   for (const p of updated) if (p) result.set(p.guid, p);
 
-  await saveSnapshot([...result.values()]);
+  await updateStatus({ phase: 'saving', message: 'Сохранение снапшота' }, { immediate: true });
+  const snapshotCount = await saveSnapshot([...result.values()]);
+  const downloadedFiles = status.downloadedFiles;
   log(`📥 Докачано файлов: ${downloadedFiles}`);
+  await updateStatus(
+    {
+      state: 'success',
+      phase: 'done',
+      finishedAt: new Date().toISOString(),
+      snapshotCount,
+      message: `Обновлено процедур: ${work.length}, скачано файлов: ${downloadedFiles}`,
+    },
+    { immediate: true }
+  );
 }
 
-main().catch((e) => {
-  console.error(`\n❌ ${e.message}`);
-  process.exit(1);
-});
+/** Завершение с ошибкой: фиксируем её в статусе, чтобы кнопка не «висела» в running. */
+async function failWith(message, exitCode) {
+  console.error(`\n❌ ${message}`);
+  writeLogLine(`❌ ${message}`);
+  await updateStatus(
+    { state: 'error', finishedAt: new Date().toISOString(), error: message, message: 'Ошибка обновления' },
+    { immediate: true }
+  );
+  process.exit(exitCode);
+}
+
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    failWith(`Синхронизация прервана (${signal})`, 130);
+  });
+}
+
+main().catch((e) => failWith(e.message, 1));

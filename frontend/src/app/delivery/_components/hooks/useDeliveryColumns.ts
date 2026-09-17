@@ -89,7 +89,7 @@ export function useDeliveryColumns(filters: DeliveryFiltersHook): HeaderColumn[]
       supplier: [{ kind: 'text', field: 'supplierName', placeholder: 'Фильтр' }],
       // Сумма объединена с валютой — фильтр колонки ищет по валюте
       amount: [{ kind: 'text', field: 'currency', placeholder: 'Валюта' }],
-      comment: [{ kind: 'text', field: 'comment', placeholder: 'Фильтр' }],
+      comment: [{ kind: 'text', field: 'comment', placeholder: '…', compact: true }],
       responsible: [select('responsibleName', 'Все', toOptions(responsibleOptions))],
     };
 

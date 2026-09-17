@@ -20,7 +20,15 @@ interface Props {
 function renderFilter(filter: HeaderFilter, filters: DeliveryFiltersHook) {
   switch (filter.kind) {
     case 'text':
-      return <DeliveryFilterTextInput key={filter.field} field={filter.field} placeholder={filter.placeholder} filters={filters} />;
+      return (
+        <DeliveryFilterTextInput
+          key={filter.field}
+          field={filter.field}
+          placeholder={filter.placeholder}
+          compact={filter.compact}
+          filters={filters}
+        />
+      );
     case 'select':
       return (
         <DeliveryFilterSelect
@@ -52,7 +60,13 @@ export default function DeliveryTableHeader({ columns, filters, sortField, sortD
                   <SortIcon className={`w-[11px] h-[11px] ${sorted ? 'text-blue-600' : 'text-slate-400'}`} />
                 </button>
               )}
-              {col.label}
+              {col.icon ? (
+                <span title={col.label} aria-label={col.label} className="inline-flex">
+                  <col.icon className="w-3.5 h-3.5 text-slate-500" />
+                </span>
+              ) : (
+                col.label
+              )}
               {col.sub && <span className="font-normal text-slate-400">{col.sub}</span>}
             </div>
             <div className={`grid gap-1 ${col.filterGridClass}`}>

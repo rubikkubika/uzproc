@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import CommentCountButton from '@/app/_components/comments/CommentCountButton';
 import { Eye, EyeOff, Check, Clock, X, Star } from 'lucide-react';
 import { PurchaseRequest, TabType, Contract } from '../types/purchase-request.types';
 import { getCurrencyIcon } from '../utils/currency.utils';
@@ -248,19 +249,11 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden"
+              className="px-1 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden"
               style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px` }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onCommentsClick?.(request);
-              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <span
-                className={onCommentsClick ? 'text-blue-600 hover:underline cursor-pointer' : ''}
-                title="Открыть комментарии"
-              >
-                {commentCount > 0 ? `(${commentCount})` : '-'}
-              </span>
+              <CommentCountButton count={commentCount} onClick={() => onCommentsClick?.(request)} />
             </td>
           );
         }

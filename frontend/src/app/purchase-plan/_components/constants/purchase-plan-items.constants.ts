@@ -160,7 +160,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   purchaseRequestId: 160,
   purchaseRequestStatus: 200,
   comment: 192,
-  details: 100,
+  details: 56, // облачко с числом комментариев
   suppliers: 100,
   createdAt: 128,
   updatedAt: 128,

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import CommentCountButton from '@/app/_components/comments/CommentCountButton';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from '../utils/purchase-plan-items.utils';
 import GanttChart from '../GanttChart';
@@ -1009,15 +1010,11 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center cursor-pointer text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
-            style={{ width: `${width}px`, fontSize: '13.44px' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onRowClick?.(item);
-            }}
-            title="Открыть комментарии"
+            className="px-1 py-2 border-r border-gray-300 whitespace-nowrap text-center"
+            style={{ width: `${width}px` }}
+            onClick={(e) => e.stopPropagation()}
           >
-            ({commentCount})
+            <CommentCountButton count={commentCount} onClick={() => onRowClick?.(item)} />
           </td>
         );
       }

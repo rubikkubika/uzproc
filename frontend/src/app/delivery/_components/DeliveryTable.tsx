@@ -5,8 +5,7 @@ import DeliveryTableTabs from './ui/DeliveryTableTabs';
 import DeliveryToolbar from './ui/toolbar/DeliveryToolbar';
 import DeliveryYearFilter from './ui/toolbar/DeliveryYearFilter';
 import DeliveryActiveChips from './ui/toolbar/DeliveryActiveChips';
-import DeliveryCollapsiblePanel from './ui/panel/DeliveryCollapsiblePanel';
-import DeliveryDaysHeaderExtra from './ui/days/DeliveryDaysHeaderExtra';
+import DeliveryDaysMonthBar from './ui/days/DeliveryDaysMonthBar';
 import DeliveryDaysBody from './ui/days/DeliveryDaysBody';
 import DeliveryTableHeader from './ui/table/DeliveryTableHeader';
 import DeliveryTableBody from './ui/table/DeliveryTableBody';
@@ -18,7 +17,7 @@ import Tour from '@/app/_components/tour/ui/Tour';
 import TourButton from '@/app/_components/tour/ui/TourButton';
 
 export default function DeliveryTable() {
-  const { table, chart, horizon, chips, panels, columns, rows, modals, comments, tour, backUrl } =
+  const { table, chart, horizon, chips, columns, rows, modals, comments, tour, backUrl } =
     useDeliveryPage();
 
   if (table.error) {
@@ -38,29 +37,22 @@ export default function DeliveryTable() {
         actions={<TourButton onClick={tour.start} />}
       />
 
-      <div className="px-5 py-2.5 border-b border-slate-200 flex-shrink-0">
-        <DeliveryCollapsiblePanel
-          tourId="deadline-chart"
-          title="По дням"
-          collapsed={panels.chartCollapsed}
-          onToggle={panels.toggleChart}
-          headerExtra={(
-            <DeliveryDaysHeaderExtra
+      <div data-tour="deadline-chart" className="px-5 py-2.5 border-b border-slate-200 flex-shrink-0">
+        <DeliveryDaysBody
+          cards={horizon.cards}
+          onToggleHorizon={table.toggleHorizon}
+          monthBar={(
+            <DeliveryDaysMonthBar
               monthLabel={chart.monthLabel}
               legend={chart.legend}
               onPrevMonth={chart.goToPrevMonth}
               onNextMonth={chart.goToNextMonth}
             />
           )}
-        >
-          <DeliveryDaysBody
-            cards={horizon.cards}
-            onToggleHorizon={table.toggleHorizon}
-            days={chart.days}
-            month={chart.month}
-            onToggleDay={chart.toggleDay}
-          />
-        </DeliveryCollapsiblePanel>
+          days={chart.days}
+          month={chart.month}
+          onToggleDay={chart.toggleDay}
+        />
       </div>
 
       <DeliveryToolbar

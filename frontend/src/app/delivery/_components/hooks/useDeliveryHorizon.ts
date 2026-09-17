@@ -3,22 +3,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import type { DeliveryHorizon } from '../types/delivery-horizon.types';
-import type { DeliveryQuery } from '../types/delivery-query.types';
-import { buildDeliveryQueryParams } from '../utils/delivery-query.utils';
+import type { HorizonKey } from '../types/delivery-query.types';
 import { toHorizonCards } from '../utils/delivery-horizon.utils';
 
 /**
  * Горизонт «что горит»: просрочено → сегодня → ближайшие 7 дней → позже → без даты.
- * Считается по фильтрам таблицы без выбранного дня и группы, чтобы карточки не обнулялись собственным выбором,
- * и без вкладки — как и лента, горизонт показывает все поставки.
+ * Считается по всем поставкам: фильтры таблицы, вкладка, выбранный день и группа на карточки не влияют.
+ * selectedHorizon нужен только для подсветки выбранной карточки.
  */
-export function useDeliveryHorizon(query: DeliveryQuery, reloadKey: number) {
+export function useDeliveryHorizon(selectedHorizon: HorizonKey | null, reloadKey: number) {
   const [horizon, setHorizon] = useState<DeliveryHorizon | null>(null);
-  const paramsStr = buildDeliveryQueryParams(query, { includeDaySelection: false, includeTab: false }).toString();
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${getBackendUrl()}/api/deliveries/horizon?${paramsStr}`)
+    fetch(`${getBackendUrl()}/api/deliveries/horizon`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<DeliveryHorizon>;
@@ -29,9 +27,9 @@ export function useDeliveryHorizon(query: DeliveryQuery, reloadKey: number) {
         if (!cancelled) setHorizon(null);
       });
     return () => { cancelled = true; };
-  }, [paramsStr, reloadKey]);
+  }, [reloadKey]);
 
-  const cards = useMemo(() => toHorizonCards(horizon, query.horizon), [horizon, query.horizon]);
+  const cards = useMemo(() => toHorizonCards(horizon, selectedHorizon), [horizon, selectedHorizon]);
 
   return { cards };
 }

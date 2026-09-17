@@ -139,12 +139,12 @@ app:
   # Вкладка ЕК (Обзор): перевод сумм в базовую валюту по курсу при разных валютах
   overview:
     ek:
-      base-currency: RUB
+      # Суммы приводятся к сумам; курсы ЦБ РУз на 17.09.2026 (за 1 единицу валюты)
+      base-currency: UZS
       exchange-rates:
-        RUB: 1
-        RUR: 1
-        USD: 100
-        EUR: 105
+        USD: 11797.46
+        EUR: 13608.37
+        RUB: 139.77
 
 management:
   endpoints:

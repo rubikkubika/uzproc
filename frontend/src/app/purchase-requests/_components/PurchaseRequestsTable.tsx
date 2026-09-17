@@ -562,7 +562,7 @@ export default function PurchaseRequestsTable() {
     }
   }, [activeTab, statusGroupsByKind, uniqueValues.statusGroup, statusFilter, setStatusFilter]);
 
-  // Ознакомительный тур по разделу (запуск кнопкой «Обучение»)
+  // Ознакомительный тур по разделу (запуск кнопкой «?» в правом верхнем углу)
   const tour = useTour(PURCHASE_REQUESTS_TOUR_STEPS);
 
   // Используем хук для excludeFromInWork
@@ -951,7 +951,12 @@ export default function PurchaseRequestsTable() {
 
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+    <div className="relative bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Обучение («?») — в правом верхнем углу страницы */}
+      <div className="absolute top-2 right-3 z-20">
+        <TourButton onClick={tour.start} />
+      </div>
+
       {/* Сводная таблица по закупщикам */}
       <div className="flex items-start gap-4 px-3 py-2 border-b border-gray-200 flex-shrink-0 pr-52">
         {/* Сводная таблица по закупщикам - слева */}
@@ -996,7 +1001,6 @@ export default function PurchaseRequestsTable() {
         <PurchaseRequestsKindTabs
           kindTab={kindTab}
           onKindTabChange={setKindTab}
-          actions={<TourButton onClick={tour.start} />}
         />
 
         {/* Вкладки статусов */}

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search, HelpCircle, Check, Clock, MessageCircle, Star } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search, HelpCircle, Check, Clock, MessageSquare, Star } from 'lucide-react';
 import { SortField, SortDirection, TabType } from '../types/purchase-request.types';
 import SortableHeader from './SortableHeader';
 import CfoFilterDropdown from '../filters/CfoFilterDropdown';
@@ -463,7 +463,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 <div className="flex flex-col gap-0.5">
                   <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
                   <span className="min-h-[16px] flex items-center justify-center" title="Комментарии">
-                    <MessageCircle className="w-4 h-4 text-gray-500" aria-hidden />
+                    <MessageSquare className="w-4 h-4 text-gray-500" aria-hidden />
                   </span>
                 </div>
                 <div

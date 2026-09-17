@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react';
 import type { SortField } from './delivery.types';
 
 export interface FilterOption {
@@ -7,7 +8,13 @@ export interface FilterOption {
 
 /** Фильтр в шапке колонки */
 export type HeaderFilter =
-  | { kind: 'text'; field: string; placeholder: string }
+  | {
+      kind: 'text';
+      field: string;
+      placeholder: string;
+      /** Узкая колонка: без иконки поиска, плотные отступы */
+      compact?: boolean;
+    }
   | {
       kind: 'select';
       key: string;
@@ -29,6 +36,8 @@ export interface ColumnDef {
   label: string;
   /** Приглушённая часть названия */
   sub?: string;
+  /** Иконка вместо названия в шапке (узкая колонка); название уходит в подсказку */
+  icon?: LucideIcon;
   sortField: SortField;
   /** Сетка фильтров в шапке */
   filterGridClass: string;

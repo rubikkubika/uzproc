@@ -324,7 +324,7 @@ export default function PublicPurchasePlanTable({
   const { userEmail, userRole } = useAuth();
   // Залогинен — логотип уже есть в общем сайдбаре, в шапке таблицы его прячем
   const isAuthenticated = !!(userRole || userEmail);
-  // Ознакомительный тур («Обучение»): шаги плана или драфта
+  // Ознакомительный тур (кнопка «?»): шаги плана или драфта
   const { tour, tourTitle } = usePublicPlanTour(isDraft);
   const loadedCommentsRef = useRef<Set<number>>(new Set());
   const fetchingCommentsRef = useRef<Set<number>>(new Set());

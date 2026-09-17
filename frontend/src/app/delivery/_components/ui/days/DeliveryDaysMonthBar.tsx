@@ -18,11 +18,11 @@ const LEGEND = [
 
 const NAV_BUTTON = 'w-[22px] h-[22px] flex items-center justify-center rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100';
 
-/** Заголовок блока «По дням»: переключатель месяца и легенда с итогами месяца. */
-export default function DeliveryDaysHeaderExtra({ monthLabel, legend, onPrevMonth, onNextMonth }: Props) {
+/** Строка над лентой месяца: переключатель месяца слева, легенда с итогами месяца справа. */
+export default function DeliveryDaysMonthBar({ monthLabel, legend, onPrevMonth, onNextMonth }: Props) {
   return (
-    <>
-      <div className="flex items-center gap-0.5 ml-1">
+    <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-0.5">
         <button type="button" onClick={onPrevMonth} className={NAV_BUTTON} title="Предыдущий месяц">
           <ChevronLeft className="w-3 h-3" strokeWidth={2.5} />
         </button>
@@ -39,6 +39,6 @@ export default function DeliveryDaysHeaderExtra({ monthLabel, legend, onPrevMont
           </span>
         ))}
       </span>
-    </>
+    </div>
   );
 }

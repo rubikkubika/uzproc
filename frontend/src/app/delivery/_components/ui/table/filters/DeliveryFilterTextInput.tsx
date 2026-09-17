@@ -6,6 +6,8 @@ import type { DeliveryFiltersHook } from '../../../hooks/useDeliveryFilters';
 interface Props {
   field: string;
   placeholder: string;
+  /** Узкая колонка: без иконки поиска, плотные отступы */
+  compact?: boolean;
   filters: DeliveryFiltersHook;
 }
 
@@ -13,10 +15,13 @@ interface Props {
  * Текстовый фильтр в шапке колонки. Значение — localFilters (мгновенно), запрос — после debounce;
  * data-filter-field и onFocus нужны для восстановления фокуса и курсора после перезагрузки данных.
  */
-export default function DeliveryFilterTextInput({ field, placeholder, filters }: Props) {
+export default function DeliveryFilterTextInput({ field, placeholder, compact = false, filters }: Props) {
   return (
-    <label className="flex items-center gap-1 h-6 px-1.5 border border-slate-300 rounded bg-white min-w-0 focus-within:ring-1 focus-within:ring-blue-500">
-      <Search className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />
+    <label
+      title={compact ? 'Фильтр по тексту комментария' : undefined}
+      className={`flex items-center gap-1 h-6 ${compact ? 'px-1' : 'px-1.5'} border border-slate-300 rounded bg-white min-w-0 focus-within:ring-1 focus-within:ring-blue-500`}
+    >
+      {!compact && <Search className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />}
       <input
         type="text"
         data-filter-field={field}

@@ -2,6 +2,7 @@
 
 import { EK_MODE_ASSIGNMENT_TITLE, EK_MODE_CREATION_TITLE } from '../constants/ek.constants';
 import type { EkYearType } from '../types/ek.types';
+import { currencyNamePrepositional, currencySymbol } from '../utils/ek-format.utils';
 
 interface EkModeBadgesProps {
   yearType: EkYearType;
@@ -37,8 +38,8 @@ export function EkModeBadges({ yearType, amountsInBaseCurrency, baseCurrency, ex
           title={exchangeRatesTitle}
           className="flex items-center gap-1.5 rounded-full text-xs px-2.5 py-1 bg-gray-100 text-gray-700 cursor-help"
         >
-          <span className="font-semibold">{baseCurrency === 'RUB' ? '₽' : baseCurrency}</span>
-          Суммы в {baseCurrency} по курсу
+          <span className="font-semibold">{currencySymbol(baseCurrency)}</span>
+          Суммы в {currencyNamePrepositional(baseCurrency)} по курсу
         </span>
       )}
     </>

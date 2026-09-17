@@ -32,13 +32,11 @@ export const INITIAL_FILTERS: Record<string, string> = {
 
 /** Сетка колонок таблицы: шапка, строки и скелетон используют одну и ту же */
 export const DELIVERY_GRID_CLASS =
-  'grid grid-cols-[178px_170px_195px_205px_150px_minmax(140px,1.4fr)_minmax(110px,1fr)_100px_110px_110px]';
+  'grid grid-cols-[178px_170px_195px_205px_150px_minmax(140px,1.4fr)_minmax(110px,1fr)_100px_56px_110px]';
 
 /** Минимальная ширина таблицы — уже неё появляется горизонтальная прокрутка */
-export const DELIVERY_TABLE_MIN_WIDTH_CLASS = 'min-w-[1460px]';
+export const DELIVERY_TABLE_MIN_WIDTH_CLASS = 'min-w-[1406px]';
 
-/** Ключ localStorage для свёрнутой панели «По дням» */
-export const PANELS_STORAGE_KEY = 'delivery.panels.collapsed';
 
 /** Ключ sessionStorage для состояния таблицы при возврате со страниц договора и заявки */
 export const DELIVERY_VIEW_STATE_KEY = 'delivery.viewState';

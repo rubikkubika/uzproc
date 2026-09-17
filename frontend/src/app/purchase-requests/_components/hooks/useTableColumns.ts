@@ -179,7 +179,7 @@ export function useTableColumns(activeTab?: TabType) {
       requiresPurchase: 58,    // "Заказ"/"Закупка"
       status: activeTab ? STATUS_WIDTH_BY_TAB[activeTab] : 182,
       purchaseRequestCreationDate: 92, // "Назначение" (10 chars + sort btn + padding)
-      comments: 32,
+      comments: 52,            // облачко с числом комментариев
       complexity: 50,          // "Слож." header + sort btn
       costType: 96,
       contractType: 96,

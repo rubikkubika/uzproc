@@ -319,8 +319,9 @@ export default function ContractsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Сводная таблица */}
-      <div data-tour="summary" className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+      {/* Сводная таблица; справа — обучение («?») в правом верхнем углу страницы */}
+      <div className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0 flex items-start gap-3">
+        <div data-tour="summary" className="min-w-0 flex-1">
         <ContractsSummaryTable
           segmentsData={segmentsData}
           currentYear={summaryCurrentYear}
@@ -334,6 +335,10 @@ export default function ContractsTable() {
           onSignedPreparedByClick={handleSignedPreparedByClick}
           onSignedCellClick={handleSignedCellClick}
         />
+        </div>
+        <div className="flex-shrink-0">
+          <TourButton onClick={tour.start} />
+        </div>
       </div>
 
       {/* Header */}
@@ -439,7 +444,6 @@ export default function ContractsTable() {
         showRemarks={showRemarks}
         onRemarksToggle={() => setShowRemarks(v => !v)}
         tabCounts={tabCounts}
-        actions={<TourButton onClick={tour.start} />}
       />
 
       {showRemarks ? (

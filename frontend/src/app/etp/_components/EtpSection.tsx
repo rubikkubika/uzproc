@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { useEtpData } from './hooks/useEtpData';
 import { useEtpFilters } from './hooks/useEtpFilters';
+import { useEtpSync } from './hooks/useEtpSync';
 import EtpList from './ui/EtpList';
+import EtpSyncPanel from './ui/EtpSyncPanel';
+import { useAuth } from '@/contexts/AuthContext';
 import EtpDetail from './ui/EtpDetail';
 import Tour from '@/app/_components/tour/ui/Tour';
 import TourButton from '@/app/_components/tour/ui/TourButton';
@@ -12,7 +15,18 @@ import { useTour } from '@/app/_components/tour/hooks/useTour';
 import { ETP_TOUR_STEPS } from './constants/etp-tour.constants';
 
 export default function EtpSection() {
-  const { snapshot, loading, error } = useEtpData();
+  const { snapshot, loading, error, reload } = useEtpData();
+  const { userRole } = useAuth();
+  const isAdmin = userRole === 'admin';
+  const sync = useEtpSync(isAdmin, reload);
+  const syncPanel = isAdmin ? (
+    <EtpSyncPanel
+      status={sync.status}
+      isRunning={sync.isRunning}
+      requestError={sync.requestError}
+      onStart={sync.start}
+    />
+  ) : null;
   const procedures = useMemo(() => snapshot?.procedures ?? [], [snapshot]);
   const { search, setSearch, statusFilter, setStatusFilter, filtered } = useEtpFilters(procedures);
   const [selectedGuid, setSelectedGuid] = useState<string | null>(null);
@@ -44,8 +58,9 @@ export default function EtpSection() {
 
   if (error || !snapshot) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white p-6 rounded-lg shadow flex flex-wrap items-center justify-between gap-3">
         <p className="text-gray-600">Не удалось загрузить снапшот ЭТП: {error}</p>
+        {syncPanel}
       </div>
     );
   }
@@ -64,7 +79,8 @@ export default function EtpSection() {
             </p>
           </div>
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {syncPanel}
           <TourButton onClick={tour.start} />
         </div>
       </div>

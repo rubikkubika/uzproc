@@ -118,8 +118,8 @@ build/
 # ЭТП: служебные дампы данных b2biz (local only, not in git)
 /etp/
 
-# ЭТП: все данные (снапшот data.json + документы закупок) — not in git
-/frontend/public/etp/
+# ЭТП: все данные (снапшот data.json, документы закупок, статус и логи синхронизации) — not in git
+/frontend/etp-data/
 
 # Claude Code personal overrides
 .claude/settings.local.json

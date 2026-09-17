@@ -147,7 +147,7 @@ export function resolveRowCurrency(row: EkApiRow, data: EkApiResponse): string |
   return data.amountsInBaseCurrency ? currencySymbol(data.baseCurrency) : currencySymbol(row.currency);
 }
 
-/** Подсказка к бейджу пересчёта: «USD = 100 ₽, EUR = 105 ₽» */
+/** Подсказка к бейджу пересчёта: «USD = 11 797,46 сум, EUR = 13 608,37 сум» */
 export function formatExchangeRates(data: EkApiResponse): string {
   const base = currencySymbol(data.baseCurrency) ?? data.baseCurrency ?? '';
   return Object.entries(data.exchangeRates)

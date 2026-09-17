@@ -2,6 +2,19 @@
 
 export const ETP_DATA_URL = '/etp/data.json';
 
+// Обновление данных с b2biz.uz (кнопка «Обновить», только admin)
+export const ETP_SYNC_URL = '/api/etp/sync';
+/** Интервал опроса статуса, пока идёт обновление */
+export const ETP_SYNC_POLL_INTERVAL_MS = 2000;
+
+export const ETP_SYNC_PHASE_LABELS: Record<string, string> = {
+  login: 'Авторизация на b2biz.uz',
+  list: 'Получение списка процедур',
+  procedures: 'Обновление процедур и документов',
+  saving: 'Сохранение снапшота',
+  done: 'Готово',
+};
+
 // Порядок и подписи статусов процедур
 export const ETP_STATUS_ORDER = [
   'Приём предложений',

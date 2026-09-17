@@ -91,6 +91,13 @@ services:
       - NODE_ENV=production
       # Тот же секрет, что у backend — для криптопроверки JWT в middleware/BFF (T2 fix)
       - JWT_SECRET=${JWT_SECRET}
+      # ЭТП (b2biz.uz): каталог данных и учётные данные для синхронизации
+      - ETP_DATA_DIR=/app/etp-data
+      - B2BIZ_LOGIN=${B2BIZ_LOGIN}
+      - B2BIZ_PASSWORD=${B2BIZ_PASSWORD}
+    volumes:
+      # Снапшот и документы ЭТП живут вне образа и не затираются деплоем (владелец — uid 1001)
+      - ./etp-data:/app/etp-data
     depends_on:
       - backend
     restart: unless-stopped

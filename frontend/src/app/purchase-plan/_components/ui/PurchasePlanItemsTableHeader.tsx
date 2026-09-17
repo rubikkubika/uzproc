@@ -262,7 +262,7 @@ export default function PurchasePlanItemsTableHeader({
             </div>
           )}
 
-          {/* Действия справа (кнопка «Обучение») */}
+          {/* Действия справа (кнопка обучения «?») */}
           {actions ? <div className="ml-auto pl-3 flex-shrink-0">{actions}</div> : null}
         </div>
     </div>

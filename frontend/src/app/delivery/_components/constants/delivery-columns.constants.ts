@@ -1,3 +1,4 @@
+import { MessageSquare } from 'lucide-react';
 import type { ColumnDef } from '../types/delivery-columns.types';
 
 /**
@@ -13,7 +14,7 @@ export const DELIVERY_COLUMNS: ColumnDef[] = [
   { key: 'subject', label: 'Предмет', sortField: 'contractSubject', filterGridClass: 'grid-cols-1' },
   { key: 'supplier', label: 'Поставщик', sortField: 'supplierName', filterGridClass: 'grid-cols-1' },
   { key: 'amount', label: 'Сумма', sortField: 'amount', filterGridClass: 'grid-cols-1' },
-  { key: 'comment', label: 'Комментарий', sortField: null, filterGridClass: 'grid-cols-1' },
+  { key: 'comment', label: 'Комментарий', icon: MessageSquare, sortField: null, filterGridClass: 'grid-cols-1' },
   { key: 'responsible', label: 'Ответств.', sortField: 'responsibleName', filterGridClass: 'grid-cols-1' },
 ];
 
