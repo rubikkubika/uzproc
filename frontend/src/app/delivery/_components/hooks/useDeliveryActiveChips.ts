@@ -13,22 +13,19 @@ export interface ActiveChip {
 }
 
 interface Params {
-  sliceLabel: string;
-  clearSlice: () => void;
   plannedDate: string | null;
   clearDay: () => void;
   horizon: HorizonKey | null;
   clearHorizon: () => void;
 }
 
-/** Чипы активных срезов в панели фильтров: срез сводки, выбранный день, группа горизонта. */
-export function useDeliveryActiveChips({ sliceLabel, clearSlice, plannedDate, clearDay, horizon, clearHorizon }: Params) {
+/** Чипы активных срезов в панели фильтров: выбранный день, группа горизонта. */
+export function useDeliveryActiveChips({ plannedDate, clearDay, horizon, clearHorizon }: Params) {
   return useMemo(() => {
     const chips: ActiveChip[] = [];
-    if (sliceLabel) chips.push({ key: 'slice', label: sliceLabel, onClear: clearSlice });
     const day = parseIsoDate(plannedDate);
     if (day) chips.push({ key: 'day', label: `${day.getDate()} ${MONTH_FULL_LABELS[day.getMonth()]}`, onClear: clearDay });
     if (horizon) chips.push({ key: 'horizon', label: HORIZON_CHIP_LABELS[horizon], onClear: clearHorizon });
     return chips;
-  }, [sliceLabel, clearSlice, plannedDate, clearDay, horizon, clearHorizon]);
+  }, [plannedDate, clearDay, horizon, clearHorizon]);
 }

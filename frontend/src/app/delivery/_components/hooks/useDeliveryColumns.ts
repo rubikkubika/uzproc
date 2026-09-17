@@ -85,6 +85,7 @@ export function useDeliveryColumns(filters: DeliveryFiltersHook): HeaderColumn[]
         { kind: 'text', field: 'contractInnerId', placeholder: 'Договор' },
         { kind: 'text', field: 'contractPurchaseRequestId', placeholder: 'Заявка' },
       ],
+      subject: [{ kind: 'text', field: 'contractSubject', placeholder: 'Фильтр' }],
       supplier: [{ kind: 'text', field: 'supplierName', placeholder: 'Фильтр' }],
       // Сумма объединена с валютой — фильтр колонки ищет по валюте
       amount: [{ kind: 'text', field: 'currency', placeholder: 'Валюта' }],

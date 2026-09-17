@@ -17,7 +17,7 @@ interface DeliveryTableTabsProps {
  *   «В работе»           — все, кроме закрытых по правилам и закрытых в отчёте;
  *   «Закрыто»            — «Поставлено» + «Оплачено» (правила системы);
  *   «Закрыто-разобрать»  — в отчёте «Закрыто», но по правилам поставка не закрыта;
- *   «Все»                — без фильтра по состоянию (нужна для срезов сводки).
+ *   «Все»                — без фильтра по состоянию (нужна для срезов блока «По дням»).
  */
 export default function DeliveryTableTabs({ activeTab, tabCounts, onTabChange, actions }: DeliveryTableTabsProps) {
   const tabs: Array<{ key: DeliveryTab; label: string; count: number | null; title?: string }> = [

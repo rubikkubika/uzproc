@@ -130,6 +130,12 @@ app:
       enabled: ${PURCHASE_PLAN_AUTO_VERSION_ENABLED:true}
       cron: ${PURCHASE_PLAN_AUTO_VERSION_CRON:0 30 23 L * *}
       zone: ${PURCHASE_PLAN_AUTO_VERSION_ZONE:Asia/Tashkent}
+  # Ручной отчёт по договорам (handreport): при старте скачивается из Google Таблицы (доступ по ссылке);
+  # недоступна — шаг пропускается. enabled=false — отчёт берётся из папки upload/handreport
+  handreport:
+    google-sheet:
+      enabled: ${HANDREPORT_GOOGLE_SHEET_ENABLED:true}
+      url: ${HANDREPORT_GOOGLE_SHEET_URL:https://docs.google.com/spreadsheets/d/1s4ZoYr-e4dWcd3bfV2cpIwiyhkXVHkHre54I59YQKGI/export?format=xlsx}
   # Вкладка ЕК (Обзор): перевод сумм в базовую валюту по курсу при разных валютах
   overview:
     ek:

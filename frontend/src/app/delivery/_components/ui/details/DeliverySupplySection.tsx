@@ -170,14 +170,6 @@ export function DeliverySupplySection({
           className={`${FIELD_BOX} placeholder:text-[#b0b6c0]`}
         />
       </DeliveryField>
-
-      <DeliveryField label="Комментарий">
-        <div className={`min-h-[42px] rounded-[10px] border border-[#e3e5e9] px-[13px] py-[11px] text-sm ${
-          delivery.comment ? 'text-[#101828]' : PLACEHOLDER
-        }`}>
-          {delivery.comment ?? '—'}
-        </div>
-      </DeliveryField>
     </div>
   );
 }

@@ -21,7 +21,7 @@ export type HeaderFilter =
     }
   | { kind: 'range'; from: string; to: string; onChange: (from: string, to: string) => void };
 
-export type ColumnKey = 'signal' | 'dates' | 'shipment' | 'money' | 'contract' | 'supplier' | 'amount' | 'comment' | 'responsible';
+export type ColumnKey = 'signal' | 'dates' | 'shipment' | 'money' | 'contract' | 'subject' | 'supplier' | 'amount' | 'comment' | 'responsible';
 
 /** Статическое описание колонки */
 export interface ColumnDef {

@@ -21,6 +21,8 @@ export interface Delivery {
   contractId: number | null;
   contractInnerId: string | null;
   contractName: string | null;
+  /** Предмет договора, а если его нет — наименование. */
+  contractSubject: string | null;
   /** Номер заявки на закупку (из договора-спецификации). */
   contractPurchaseRequestId: number | null;
   /** Системный id заявки на закупку (PK) — для ссылки на карточку заявки. */
@@ -47,7 +49,8 @@ export interface Delivery {
   paymentSchemeLabel: string | null;
   paymentsCount: number;
   paymentsDistributed: boolean;
-  comment: string | null;
+  /** Количество комментариев к поставке */
+  commentsCount: number;
   responsibleId: number | null;
   responsibleDisplayName: string | null;
   createdAt: string;

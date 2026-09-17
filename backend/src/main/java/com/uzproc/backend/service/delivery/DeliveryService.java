@@ -61,19 +61,22 @@ public class DeliveryService {
     private final HolidayRepository holidayRepository;
     private final ContractApprovalRepository contractApprovalRepository;
     private final com.uzproc.backend.repository.delivery.DeliveryPaymentSchemeRepository paymentSchemeRepository;
+    private final DeliveryCommentService deliveryCommentService;
 
     public DeliveryService(DeliveryRepository deliveryRepository,
                            ContractRepository contractRepository,
                            PaymentRepository paymentRepository,
                            HolidayRepository holidayRepository,
                            ContractApprovalRepository contractApprovalRepository,
-                           com.uzproc.backend.repository.delivery.DeliveryPaymentSchemeRepository paymentSchemeRepository) {
+                           com.uzproc.backend.repository.delivery.DeliveryPaymentSchemeRepository paymentSchemeRepository,
+                           DeliveryCommentService deliveryCommentService) {
         this.deliveryRepository = deliveryRepository;
         this.contractRepository = contractRepository;
         this.paymentRepository = paymentRepository;
         this.holidayRepository = holidayRepository;
         this.contractApprovalRepository = contractApprovalRepository;
         this.paymentSchemeRepository = paymentSchemeRepository;
+        this.deliveryCommentService = deliveryCommentService;
     }
 
     /** Уникальные значения «Статуса из отчёта» — для выпадающего фильтра в таблице поставок. */
@@ -889,9 +892,6 @@ public class DeliveryService {
         if (delivery.getEsfDate() != null) {
             delivery.setShipmentStatus(ShipmentStatus.DELIVERED);
         }
-        if (comment != null && !comment.isBlank()) {
-            delivery.setComment(comment.trim());
-        }
         if (reportStatus != null && !reportStatus.isBlank()) {
             delivery.setReportStatus(reportStatus.trim());
         }
@@ -913,6 +913,8 @@ public class DeliveryService {
         // уточняем статус оплаты («Не оплачено» → «Ожидает доплаты» для постоплаты).
         refinePostpayAwaitingBalance(delivery);
         deliveryRepository.save(delivery);
+        // Примечание из отчёта — отдельным комментарием (тот же текст повторно не добавляется)
+        deliveryCommentService.addReportComment(delivery, comment);
         return created;
     }
 
@@ -1803,6 +1805,7 @@ public class DeliveryService {
             "contractPurchaseRequestId", "contract.purchaseRequestId",
             "contractInnerId", "contract.innerId",
             "contractName", "contract.name",
+            "contractSubject", "contract.subjectOrName",
             "supplierName", "supplier.name",
             "responsibleName", "responsible.surname"
     );
@@ -1844,6 +1847,9 @@ public class DeliveryService {
             dto.setContractId(entity.getContract().getId());
             dto.setContractInnerId(entity.getContract().getInnerId());
             dto.setContractName(entity.getContract().getName());
+            // как Contract.subjectOrName: по нему же идут фильтр и сортировка
+            dto.setContractSubject(entity.getContract().getSubject() != null
+                    ? entity.getContract().getSubject() : entity.getContract().getName());
             dto.setContractPurchaseRequestId(entity.getContract().getPurchaseRequestId());
             if (entity.getContract().getPurchaseRequest() != null) {
                 dto.setContractPurchaseRequestSystemId(entity.getContract().getPurchaseRequest().getId());
@@ -1880,7 +1886,7 @@ public class DeliveryService {
             dto.setPaymentsDistributed(count > 0
                     && entity.getPayments().stream().allMatch(p -> p.getPaymentType() != null));
         }
-        dto.setComment(entity.getComment());
+        dto.setCommentsCount(entity.getCommentsCount() != null ? entity.getCommentsCount() : 0);
         if (entity.getResponsible() != null) {
             dto.setResponsibleId(entity.getResponsible().getId());
             dto.setResponsibleDisplayName(formatUserDisplayName(entity.getResponsible()));

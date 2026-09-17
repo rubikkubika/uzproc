@@ -6,9 +6,9 @@ import { toDeliveryRowView } from '../utils/delivery-row.utils';
 import { startOfToday } from '../utils/date.utils';
 
 /** Строки таблицы, подготовленные к отображению: сигнал, цвета статусов, форматированные суммы. */
-export function useDeliveryRows(items: Delivery[], highlightedResponsible: string) {
+export function useDeliveryRows(items: Delivery[]) {
   return useMemo(() => {
     const today = startOfToday();
-    return items.map((item) => toDeliveryRowView(item, today, highlightedResponsible));
-  }, [items, highlightedResponsible]);
+    return items.map((item) => toDeliveryRowView(item, today));
+  }, [items]);
 }

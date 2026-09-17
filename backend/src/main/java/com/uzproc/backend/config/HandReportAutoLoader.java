@@ -1,6 +1,7 @@
 package com.uzproc.backend.config;
 
 import com.uzproc.backend.service.handreport.HandReportExcelLoadService;
+import com.uzproc.backend.service.handreport.HandReportGoogleSheetService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -14,7 +15,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * Авто-загрузка ручного отчёта по договорам из папки upload/handreport при старте приложения.
+ * Авто-загрузка ручного отчёта по договорам при старте приложения (в т.ч. после деплоя).
+ * Если включена загрузка из Google Таблицы — отчёт скачивается оттуда; при недоступности шаг пропускается.
+ * Если выключена ({@code app.handreport.google-sheet.enabled=false}) — отчёт берётся из папки upload/handreport.
  * Выполняется после загрузки alldocuments (@Order 0), чтобы договоры/спецификации уже были в БД.
  */
 @Configuration
@@ -24,8 +27,19 @@ public class HandReportAutoLoader {
 
     @Bean
     @Order(150)
-    public CommandLineRunner autoLoadHandReport(HandReportExcelLoadService handReportService) {
+    public CommandLineRunner autoLoadHandReport(HandReportExcelLoadService handReportService,
+                                                HandReportGoogleSheetService googleSheetService) {
         return args -> {
+            if (googleSheetService.isEnabled()) {
+                try {
+                    googleSheetService.loadFromGoogleSheet();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    logger.warn("HandReport: Google Sheet unavailable ({}) — skipping handreport import", e.getMessage());
+                }
+                return;
+            }
             try {
                 Path folder = resolveHandReportFolder();
                 if (folder == null) {

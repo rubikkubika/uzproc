@@ -35,6 +35,4 @@ export interface DeliveryRowView {
   amountText: string;
   amountFull: string;
   currency: string;
-  /** Строка выбранного в сводке ответственного */
-  highlighted: boolean;
 }

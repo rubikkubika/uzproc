@@ -8,7 +8,7 @@ import { getRowSignal, hasReportDiscrepancy, isDelivered } from './delivery-sign
 const PAYMENTS_TONE = { none: 'slate', undistributed: 'orange', distributed: 'green' } as const;
 
 /** Подготавливает поставку к отображению в строке таблицы. */
-export function toDeliveryRowView(d: Delivery, today: Date, highlightedResponsible: string): DeliveryRowView {
+export function toDeliveryRowView(d: Delivery, today: Date): DeliveryRowView {
   const payments = getPaymentsStatus(d.paymentsCount, d.paymentsDistributed);
   const schemeLabel = d.paymentSchemeLabel ?? getPaymentSchemeLabel(d.paymentScheme);
   const shipment: ToneLabel | null = d.shipmentStatus
@@ -33,6 +33,5 @@ export function toDeliveryRowView(d: Delivery, today: Date, highlightedResponsib
     amountText: d.amount != null ? formatAmountShort(d.amount) : '—',
     amountFull: formatAmountFull(d.amount, d.currency),
     currency: d.amount != null ? d.currency ?? '' : '',
-    highlighted: highlightedResponsible !== '' && d.responsibleDisplayName === highlightedResponsible,
   };
 }

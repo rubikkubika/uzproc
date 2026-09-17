@@ -29,6 +29,8 @@ public class DeliveryDto {
     private Long contractId;
     private String contractInnerId;
     private String contractName;
+    /** Предмет договора, а если его нет — наименование (колонка «Предмет» в таблице поставок). */
+    private String contractSubject;
     /** Номер заявки на закупку (из связанного договора-спецификации). */
     private Long contractPurchaseRequestId;
     /** Системный id заявки на закупку (PK) — для ссылки на карточку заявки. */
@@ -63,7 +65,8 @@ public class DeliveryDto {
     private int paymentsCount;
     /** Все привязанные оплаты имеют тип (Аванс/По факту). Имеет смысл только при paymentsCount > 0. */
     private boolean paymentsDistributed;
-    private String comment;
+    /** Количество комментариев к поставке */
+    private int commentsCount;
     private Long responsibleId;
     private String responsibleDisplayName;
     private LocalDateTime createdAt;
@@ -110,6 +113,8 @@ public class DeliveryDto {
 
     public String getContractName() { return contractName; }
     public void setContractName(String contractName) { this.contractName = contractName; }
+    public String getContractSubject() { return contractSubject; }
+    public void setContractSubject(String contractSubject) { this.contractSubject = contractSubject; }
 
     public Long getContractPurchaseRequestId() { return contractPurchaseRequestId; }
     public void setContractPurchaseRequestId(Long contractPurchaseRequestId) { this.contractPurchaseRequestId = contractPurchaseRequestId; }
@@ -177,8 +182,8 @@ public class DeliveryDto {
     public boolean isPaymentsDistributed() { return paymentsDistributed; }
     public void setPaymentsDistributed(boolean paymentsDistributed) { this.paymentsDistributed = paymentsDistributed; }
 
-    public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
+    public int getCommentsCount() { return commentsCount; }
+    public void setCommentsCount(int commentsCount) { this.commentsCount = commentsCount; }
 
     public Long getResponsibleId() { return responsibleId; }
     public void setResponsibleId(Long responsibleId) { this.responsibleId = responsibleId; }

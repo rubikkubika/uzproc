@@ -19,6 +19,7 @@ export default function DeliveryTableSkeleton() {
           <div className="flex flex-col gap-1.5 pr-3"><Bar className="h-[18px] w-[110px] rounded-full bg-slate-200" /><Bar className="h-2.5 w-[70px] bg-slate-100" /></div>
           <div className="flex flex-col gap-1.5 pr-3"><Bar className="h-2.5 w-[150px] bg-slate-200" /><Bar className="h-2.5 w-[100px] bg-slate-100" /></div>
           <div className="flex flex-col gap-1.5 pr-3"><Bar className="h-2.5 w-[100px] bg-slate-200" /><Bar className="h-2.5 w-[60px] bg-slate-100" /></div>
+          <div className="flex flex-col gap-1.5 pr-3"><Bar className="h-2.5 w-[130px] bg-slate-200" /><Bar className="h-2.5 w-[80px] bg-slate-100" /></div>
           <div className="pr-3"><Bar className="h-2.5 w-[110px] bg-slate-200" /></div>
           <div className="pr-3"><Bar className="h-2.5 w-[70px] bg-slate-200" /></div>
           <div className="pr-3"><Bar className="h-2.5 w-[90px] bg-slate-100" /></div>

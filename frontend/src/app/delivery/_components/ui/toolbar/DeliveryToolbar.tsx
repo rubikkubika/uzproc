@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ChevronsUpDown, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface Props {
   onCreate: () => void;
@@ -13,11 +13,9 @@ interface Props {
   shown: number;
   total: number;
   loading: boolean;
-  bothPanelsCollapsed: boolean;
-  onTogglePanels: () => void;
 }
 
-/** Панель действий и фильтров над сводкой: создание, сброс, год, чипы срезов, счётчик и сворачивание панелей. */
+/** Панель действий и фильтров между блоком «По дням» и таблицей: создание, сброс, год, чипы срезов, счётчик. */
 export default function DeliveryToolbar({
   onCreate,
   onReset,
@@ -26,8 +24,6 @@ export default function DeliveryToolbar({
   shown,
   total,
   loading,
-  bothPanelsCollapsed,
-  onTogglePanels,
 }: Props) {
   return (
     <div className="flex items-center gap-3 flex-wrap px-5 py-2 bg-slate-50 border-b border-slate-200 text-[12px] flex-shrink-0">
@@ -50,19 +46,10 @@ export default function DeliveryToolbar({
       </button>
       {yearFilter}
       {chips}
-      <div className="ml-auto flex items-center gap-2.5 text-slate-500 whitespace-nowrap">
+      <div className="ml-auto text-slate-500 whitespace-nowrap">
         <span data-tour="records-counter">
           Показано <b className="font-semibold text-slate-900">{loading ? '…' : shown}</b> из {loading ? '…' : total} записей
         </span>
-        <span className="text-slate-300">|</span>
-        <button
-          type="button"
-          onClick={onTogglePanels}
-          className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
-        >
-          <ChevronsUpDown className="w-3 h-3" />
-          {bothPanelsCollapsed ? 'Развернуть панели' : 'Свернуть панели'}
-        </button>
       </div>
     </div>
   );

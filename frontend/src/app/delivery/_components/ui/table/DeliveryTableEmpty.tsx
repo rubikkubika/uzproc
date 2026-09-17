@@ -11,7 +11,7 @@ export default function DeliveryTableEmpty({ onReset }: { onReset: () => void })
       </div>
       <div className="text-[14px] font-semibold text-slate-900">Ничего не найдено</div>
       <div className="text-[12px] text-slate-500 max-w-[360px] leading-normal">
-        Под текущие фильтры не подходит ни одна поставка. Снимите выбранный день или срез сводки либо переключите вкладку.
+        Под текущие фильтры не подходит ни одна поставка. Снимите выбранный день либо переключите вкладку.
       </div>
       <button
         type="button"

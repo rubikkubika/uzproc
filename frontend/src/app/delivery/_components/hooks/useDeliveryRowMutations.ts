@@ -62,5 +62,10 @@ export function useDeliveryRowMutations(setAllItems: Dispatch<SetStateAction<Del
     it => ({ ...it, esfDate: newDate || null }),
   ), [patchDate]);
 
-  return { updatePlannedDeliveryDate, updateActualDeliveryDate, updateEsfDate };
+  /** Счётчик комментариев строки — после добавления комментария в попапе */
+  const setCommentsCount = useCallback((id: number, count: number) => {
+    setAllItems(items => items.map(it => (it.id === id ? { ...it, commentsCount: count } : it)));
+  }, [setAllItems]);
+
+  return { updatePlannedDeliveryDate, updateActualDeliveryDate, updateEsfDate, setCommentsCount };
 }

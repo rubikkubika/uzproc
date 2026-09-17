@@ -10,6 +10,8 @@ public class DeliveryFilterParams {
     private String innerId;
     private String contractInnerId;
     private String contractPurchaseRequestId;
+    /** Предмет договора (COALESCE(subject, name)) */
+    private String contractSubject;
     private String supplierName;
     /** Статус оплаты (DeliveryStatus): name() / название либо NONE */
     private String status;
@@ -53,6 +55,7 @@ public class DeliveryFilterParams {
         copy.innerId = innerId;
         copy.contractInnerId = contractInnerId;
         copy.contractPurchaseRequestId = contractPurchaseRequestId;
+        copy.contractSubject = contractSubject;
         copy.supplierName = supplierName;
         copy.status = status;
         copy.currency = currency;
@@ -84,6 +87,8 @@ public class DeliveryFilterParams {
     public String getContractPurchaseRequestId() { return contractPurchaseRequestId; }
     public void setContractPurchaseRequestId(String contractPurchaseRequestId) { this.contractPurchaseRequestId = contractPurchaseRequestId; }
 
+    public String getContractSubject() { return contractSubject; }
+    public void setContractSubject(String contractSubject) { this.contractSubject = contractSubject; }
     public String getSupplierName() { return supplierName; }
     public void setSupplierName(String supplierName) { this.supplierName = supplierName; }
 

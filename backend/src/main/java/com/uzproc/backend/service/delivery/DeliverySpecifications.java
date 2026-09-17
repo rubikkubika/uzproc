@@ -2,6 +2,7 @@ package com.uzproc.backend.service.delivery;
 
 import com.uzproc.backend.dto.delivery.DeliveryFilterParams;
 import com.uzproc.backend.entity.delivery.Delivery;
+import com.uzproc.backend.entity.delivery.DeliveryComment;
 import com.uzproc.backend.entity.delivery.DeliveryStatus;
 import com.uzproc.backend.entity.delivery.PaymentScheme;
 import com.uzproc.backend.entity.delivery.ShipmentStatus;
@@ -78,6 +79,11 @@ public final class DeliverySpecifications {
                         "%" + p.getContractPurchaseRequestId().trim() + "%"));
             }
 
+            if (hasText(p.getContractSubject())) {
+                var contractJoin = root.join("contract", JoinType.LEFT);
+                addLike(predicates, cb, cb.lower(contractJoin.get("subjectOrName")), p.getContractSubject());
+            }
+
             if (hasText(p.getSupplierName())) {
                 var supplierJoin = root.join("supplier", JoinType.LEFT);
                 addLike(predicates, cb, cb.lower(supplierJoin.get("name")), p.getSupplierName());
@@ -95,7 +101,15 @@ public final class DeliverySpecifications {
             }
 
             addLike(predicates, cb, cb.lower(root.get("currency")), p.getCurrency());
-            addLike(predicates, cb, cb.lower(root.get("comment")), p.getComment());
+            // Поиск по тексту любого комментария поставки
+            if (hasText(p.getComment())) {
+                Subquery<Long> commentSub = query.subquery(Long.class);
+                Root<DeliveryComment> commentRoot = commentSub.from(DeliveryComment.class);
+                commentSub.select(commentRoot.get("id")).where(
+                        cb.equal(commentRoot.get("delivery"), root),
+                        cb.like(cb.lower(commentRoot.get("text")), "%" + p.getComment().trim().toLowerCase() + "%"));
+                predicates.add(cb.exists(commentSub));
+            }
 
             if (hasText(p.getResponsibleName())) {
                 var userJoin = root.join("responsible", JoinType.LEFT);

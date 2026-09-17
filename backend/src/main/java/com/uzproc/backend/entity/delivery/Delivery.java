@@ -93,8 +93,9 @@ public class Delivery {
     @JoinColumn(name = "payment_scheme_id")
     private DeliveryPaymentScheme paymentSchemeRef;
 
-    @Column(name = "comment", columnDefinition = "TEXT")
-    private String comment;
+    /** Количество комментариев к поставке (таблица delivery_comments) */
+    @org.hibernate.annotations.Formula("(SELECT COUNT(*) FROM delivery_comments dc WHERE dc.delivery_id = id)")
+    private Integer commentsCount;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "responsible_id")
@@ -173,8 +174,7 @@ public class Delivery {
     public DeliveryPaymentScheme getPaymentSchemeRef() { return paymentSchemeRef; }
     public void setPaymentSchemeRef(DeliveryPaymentScheme paymentSchemeRef) { this.paymentSchemeRef = paymentSchemeRef; }
 
-    public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
+    public Integer getCommentsCount() { return commentsCount; }
 
     public User getResponsible() { return responsible; }
     public void setResponsible(User responsible) { this.responsible = responsible; }
