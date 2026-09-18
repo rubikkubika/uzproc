@@ -49,3 +49,6 @@ export const HORIZON_CHIPS_LIMIT = 6;
 
 /** Количество скелетон-строк при загрузке */
 export const SKELETON_ROWS = 8;
+
+/** Параметр адреса, открывающий карточку конкретной поставки (ссылки из писем) */
+export const DELIVERY_ID_URL_PARAM = 'deliveryId';

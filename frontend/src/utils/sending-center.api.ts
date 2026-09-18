@@ -140,3 +140,67 @@ export async function sendUpcomingDeliveriesTest(
   }
   return response.json();
 }
+
+/** Сводка по одному периоду недельного отчёта по поставкам. */
+export interface DeliveryWeeklyReportPeriod {
+  from: string;
+  to: string;
+  deliveredCount: number;
+  deliveredAmount: number | null;
+  overdueCount: number;
+  overdueAmount: number | null;
+  missingEsfCount: number;
+  missingEsfAmount: number | null;
+}
+
+/** Предпросмотр недельного отчёта по поставкам. */
+export interface DeliveryWeeklyReportPreview {
+  week: DeliveryWeeklyReportPeriod;
+  month: DeliveryWeeklyReportPeriod;
+  defaultRecipientFullName: string;
+  defaultRecipientEmail: string;
+  subject: string;
+}
+
+/** Результат отправки недельного отчёта по поставкам. */
+export interface DeliveryWeeklyReportSendResult {
+  sent: boolean;
+  recipient: string;
+  recipientFullName: string;
+  subject: string;
+  periodFrom: string;
+  periodTo: string;
+  deliveredCount: number;
+  overdueCount: number;
+  missingEsfCount: number;
+}
+
+/** Что попадёт в недельный отчёт и кому он уйдёт по умолчанию. */
+export async function fetchDeliveryWeeklyReport(
+  signal?: AbortSignal
+): Promise<DeliveryWeeklyReportPreview> {
+  const url = `${getBackendUrl()}/api/sending-center/deliveries/weekly-report`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить недельный отчёт по поставкам');
+  }
+  return response.json();
+}
+
+/** Отправить недельный отчёт по поставкам. */
+export async function sendDeliveryWeeklyReport(
+  recipient: string,
+  recipientFullName: string
+): Promise<DeliveryWeeklyReportSendResult> {
+  const url = `${getBackendUrl()}/api/sending-center/deliveries/weekly-report/send`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipient, recipientFullName }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || data.message || 'Не удалось отправить отчёт');
+  }
+  return response.json();
+}

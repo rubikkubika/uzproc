@@ -130,6 +130,17 @@ app:
       enabled: ${PURCHASE_PLAN_AUTO_VERSION_ENABLED:true}
       cron: ${PURCHASE_PLAN_AUTO_VERSION_CRON:0 30 23 L * *}
       zone: ${PURCHASE_PLAN_AUTO_VERSION_ZONE:Asia/Tashkent}
+  # Недельный отчёт по поставкам: каждую пятницу в 10:00 по Ташкенту за период
+  # с прошлой пятницы по прошедший четверг включительно (см. DeliveryWeeklyReportScheduler)
+  delivery-weekly-report:
+    enabled: ${DELIVERY_WEEKLY_REPORT_ENABLED:true}
+    cron: ${DELIVERY_WEEKLY_REPORT_CRON:0 0 10 * * FRI}
+    zone: ${DELIVERY_WEEKLY_REPORT_ZONE:Asia/Tashkent}
+    # Адресат письма
+    to: ${DELIVERY_WEEKLY_REPORT_TO:o.kireeva@uzum.com}
+    to-name: ${DELIVERY_WEEKLY_REPORT_TO_NAME:Киреева Ольга}
+    # Копия: Осканов Руслан, Рецко Артем
+    cc: ${DELIVERY_WEEKLY_REPORT_CC:r.oskanov@uzum.com,a.retsko@uzum.com}
   # Ручной отчёт по договорам (handreport): при старте скачивается из Google Таблицы (доступ по ссылке);
   # недоступна — шаг пропускается. enabled=false — отчёт берётся из папки upload/handreport
   handreport:

@@ -9,6 +9,7 @@ import { useDeliveryColumns } from './useDeliveryColumns';
 import { useDeliveryRows } from './useDeliveryRows';
 import { useDeliveryModals } from './useDeliveryModals';
 import { useDeliveryBackUrl } from './useDeliveryBackUrl';
+import { useDeliveryDeepLink } from './useDeliveryDeepLink';
 import { useDeliveryComments } from './useDeliveryComments';
 import { useTour } from '@/app/_components/tour/hooks/useTour';
 import { DELIVERY_TOUR_STEPS } from '../constants/delivery-tour.constants';
@@ -33,6 +34,10 @@ export function useDeliveryPage() {
   });
 
   const comments = useDeliveryComments(table.setCommentsCount);
+  const modals = useDeliveryModals();
+
+  // Ссылка из письма (`?deliveryId=…`) сразу открывает карточку нужной поставки
+  useDeliveryDeepLink(modals.openDetails);
 
   return {
     table,
@@ -41,7 +46,7 @@ export function useDeliveryPage() {
     chips,
     columns: useDeliveryColumns(filters),
     rows: useDeliveryRows(table.allItems),
-    modals: useDeliveryModals(),
+    modals,
     comments,
     tour: useTour(DELIVERY_TOUR_STEPS),
     backUrl: useDeliveryBackUrl(),

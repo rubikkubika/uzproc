@@ -3,13 +3,14 @@
 import { Mail } from 'lucide-react';
 import { useDeliverySending } from '../hooks/useDeliverySending';
 import { DAYS_AHEAD_OPTIONS } from '../constants/delivery-sending.constants';
+import SendingStatusMessage from './SendingStatusMessage';
 
 /**
- * Раздел «Поставки» центра отправки: тестовое письмо о предстоящих поставках.
+ * Подраздел «Предстоящие поставки» вкладки «Поставки»: тестовое письмо о предстоящих поставках.
  * В письмо попадают поставки с плановой датой в выбранном горизонте,
  * ещё не отмеченные как «Поставлено».
  */
-export default function DeliveriesSending() {
+export default function UpcomingDeliveriesSending() {
   const {
     days,
     setDays,
@@ -25,23 +26,9 @@ export default function DeliveriesSending() {
 
   return (
     <div className="space-y-4">
-      {sendMessage && (
-        <div
-          className={`p-3 rounded-lg text-sm ${
-            sendMessage.type === 'success'
-              ? 'bg-green-50 border border-green-200 text-green-800'
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}
-        >
-          {sendMessage.text}
-        </div>
-      )}
+      {sendMessage && <SendingStatusMessage type={sendMessage.type} text={sendMessage.text} />}
 
-      {error && (
-        <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800">
-          {error}
-        </div>
-      )}
+      {error && <SendingStatusMessage type="error" text={error} />}
 
       <div className="bg-white p-6 rounded-lg shadow-lg space-y-4">
         <div>

@@ -23,3 +23,10 @@ logging:
     org.hibernate.SQL: DEBUG
     # Hibernate 6: логгер значений bind-параметров (замена устаревшего BasicBinder)
     org.hibernate.orm.jdbc.bind: TRACE
+
+# Локально регулярная рассылка недельного отчёта по поставкам выключена:
+# письма по расписанию (пятница, 10:00 по Ташкенту) уходят только с сервера.
+# Для проверки локально: DELIVERY_WEEKLY_REPORT_ENABLED=true
+app:
+  delivery-weekly-report:
+    enabled: ${DELIVERY_WEEKLY_REPORT_ENABLED:false}

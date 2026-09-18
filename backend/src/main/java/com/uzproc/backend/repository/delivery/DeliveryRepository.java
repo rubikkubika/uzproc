@@ -53,6 +53,23 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
             com.uzproc.backend.entity.delivery.ShipmentStatus excludedStatus);
 
     /**
+     * Поставки с фактической датой в интервале — блок «поставлено» недельного отчёта.
+     */
+    @EntityGraph(attributePaths = {"contract", "supplier"})
+    java.util.List<Delivery> findByActualDeliveryDateBetweenOrderByActualDeliveryDateAsc(
+            java.time.LocalDate from,
+            java.time.LocalDate to);
+
+    /**
+     * Просроченные поставки: плановая дата в интервале, фактическая дата не заполнена —
+     * блок «запланировано, но просрочено» недельного отчёта.
+     */
+    @EntityGraph(attributePaths = {"contract", "supplier"})
+    java.util.List<Delivery> findByPlannedDeliveryDateBetweenAndActualDeliveryDateIsNullOrderByPlannedDeliveryDateAsc(
+            java.time.LocalDate from,
+            java.time.LocalDate to);
+
+    /**
      * Поставки, договор которых относится к другой организации-заказчику.
      * Поставки ведутся только по спецификациям маркета — такие записи удаляются при старте.
      */
