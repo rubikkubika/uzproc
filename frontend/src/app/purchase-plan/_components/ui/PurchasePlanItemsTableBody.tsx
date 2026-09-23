@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { PurchasePlanItem, PageResponse } from '../types/purchase-plan-items.types';
+import { PurchasePlanItem, PageResponse, DraftSlaDaysByComplexity } from '../types/purchase-plan-items.types';
 import PurchasePlanItemsTableRow from './PurchasePlanItemsTableRow';
 
 interface PurchasePlanItemsTableBodyProps {
@@ -34,6 +34,8 @@ interface PurchasePlanItemsTableBodyProps {
   canCheckPurchaser?: boolean;
   isViewingArchiveVersion?: boolean;
   holidayDateKeys?: Set<string>;
+  /** Таблица SLA драфта года (только в драфте) */
+  draftSlaDays?: DraftSlaDaysByComplexity | null;
 }
 
 /**
@@ -64,6 +66,7 @@ export default function PurchasePlanItemsTableBody({
   canCheckPurchaser,
   isViewingArchiveVersion,
   holidayDateKeys,
+  draftSlaDays,
 }: PurchasePlanItemsTableBodyProps) {
   if (!allItems || allItems.length === 0) {
     return (
@@ -142,6 +145,7 @@ export default function PurchasePlanItemsTableBody({
           canEdit={canEdit}
           isViewingArchiveVersion={isViewingArchiveVersion}
           holidayDateKeys={holidayDateKeys}
+          draftSlaDays={draftSlaDays}
         />
       ))}
     </tbody>

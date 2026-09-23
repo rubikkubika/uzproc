@@ -175,3 +175,27 @@ export interface CfoSummaryItem {
   totalBudget: number;
   totalComplexity: number;
 }
+
+/** Строка таблицы SLA драфта: сроки по сложности в рабочих днях */
+export interface DraftSlaRow {
+  complexity: number;
+  /** SLA закупки */
+  procurementDays: number;
+  /** SLA договора (в драфте договор считается нетиповым) */
+  contractDays: number;
+  /** Общий срок от даты заявки до нового договора */
+  totalDays: number;
+}
+
+/** Таблица SLA драфта плана закупок на год */
+export interface DraftSlaTable {
+  year: number;
+  rows: DraftSlaRow[];
+  updatedAt: string | null;
+  updatedBy: string | null;
+  /** Сколько позиций драфта пересчитано при сохранении */
+  recalculated: number | null;
+}
+
+/** Общий срок по сложности: '1'–'4' → рабочих дней */
+export type DraftSlaDaysByComplexity = Record<string, number>;

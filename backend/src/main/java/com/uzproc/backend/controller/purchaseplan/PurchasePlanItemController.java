@@ -1,9 +1,11 @@
 package com.uzproc.backend.controller.purchaseplan;
 
+import com.uzproc.backend.dto.purchaseplan.DraftSlaRowDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemChangeDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.UniqueFilterValuesDto;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
+import com.uzproc.backend.service.purchaseplan.DraftSlaService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanDraftService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanItemChangeService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanItemService;
@@ -28,13 +30,16 @@ public class PurchasePlanItemController {
     private final PurchasePlanItemService purchasePlanItemService;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
     private final PurchasePlanDraftService purchasePlanDraftService;
+    private final DraftSlaService draftSlaService;
 
     public PurchasePlanItemController(PurchasePlanItemService purchasePlanItemService,
                                       PurchasePlanItemChangeService purchasePlanItemChangeService,
-                                      PurchasePlanDraftService purchasePlanDraftService) {
+                                      PurchasePlanDraftService purchasePlanDraftService,
+                                      DraftSlaService draftSlaService) {
         this.purchasePlanItemService = purchasePlanItemService;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.purchasePlanDraftService = purchasePlanDraftService;
+        this.draftSlaService = draftSlaService;
     }
 
     @GetMapping
@@ -208,6 +213,31 @@ public class PurchasePlanItemController {
             return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             logger.error("Ошибка очистки драфта плана закупок: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Неизвестная ошибка"));
+        }
+    }
+
+    /**
+     * Таблица SLA драфта плана закупок на год: сроки по сложности (SLA закупки + SLA договора).
+     */
+    @GetMapping("/draft/sla")
+    public ResponseEntity<?> getDraftSla(@RequestParam Integer year) {
+        return ResponseEntity.ok(draftSlaService.getTable(year));
+    }
+
+    /**
+     * Сохранение таблицы SLA драфта на год: даты завершения закупки у позиций драфта этого года пересчитываются.
+     */
+    @PutMapping("/draft/sla")
+    public ResponseEntity<?> updateDraftSla(@RequestParam Integer year, @RequestBody List<DraftSlaRowDto> rows) {
+        try {
+            return ResponseEntity.ok(draftSlaService.updateTable(year, rows));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Ошибка сохранения SLA драфта плана закупок: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Неизвестная ошибка"));
         }
     }

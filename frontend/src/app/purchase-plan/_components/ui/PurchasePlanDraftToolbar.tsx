@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { RefreshCw, Trash2 } from 'lucide-react';
+import { RefreshCw, Timer, Trash2 } from 'lucide-react';
 import { DraftGenerationResult } from '../hooks/usePurchasePlanDraftActions';
+import { DraftSlaTable } from '../types/purchase-plan-items.types';
 import { DRAFT_MANAGE_FORBIDDEN_TITLE } from '../constants/purchase-plan-items.constants';
 
 interface PurchasePlanDraftToolbarProps {
@@ -15,6 +16,9 @@ interface PurchasePlanDraftToolbarProps {
   onClear: () => void;
   /** Формировать и очищать драфт могут закупщики и администраторы */
   canManage: boolean;
+  /** Таблица SLA драфта выбранного года (null — ещё не загружена) */
+  slaTable: DraftSlaTable | null;
+  onOpenSla: () => void;
 }
 
 /**
@@ -30,6 +34,8 @@ export default function PurchasePlanDraftToolbar({
   onGenerate,
   onClear,
   canManage,
+  slaTable,
+  onOpenSla,
 }: PurchasePlanDraftToolbarProps) {
   const isBusy = isGenerating || isClearing;
   const isDisabled = isBusy || !canManage;
@@ -63,6 +69,16 @@ export default function PurchasePlanDraftToolbar({
         >
           <Trash2 className="w-3 h-3" />
           {isClearing ? 'Очистка…' : 'Очистить драфт'}
+        </button>
+        <button
+          data-tour="draft-sla"
+          onClick={onOpenSla}
+          disabled={!slaTable}
+          className="px-2 py-1 text-xs bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Срок от даты заявки до нового договора по сложности 1–4, рабочих дней: SLA закупки + SLA договора"
+        >
+          <Timer className="w-3 h-3" />
+          SLA{slaTable ? `: ${slaTable.rows.map(row => row.totalDays).join(' / ')}` : ''}
         </button>
       </div>
 

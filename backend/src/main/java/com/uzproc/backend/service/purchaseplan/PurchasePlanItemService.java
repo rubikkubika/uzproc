@@ -60,6 +60,7 @@ public class PurchasePlanItemService {
     private final PurchasePlanPurchaserSyncService purchaserSyncService;
     private final PurchaseRequestCommentService purchaseRequestCommentService;
     private final ProcurementLeadTimeService procurementLeadTimeService;
+    private final DraftSlaService draftSlaService;
     private final ContractRepository contractRepository;
 
     @PersistenceContext
@@ -76,6 +77,7 @@ public class PurchasePlanItemService {
             PurchasePlanPurchaserSyncService purchaserSyncService,
             PurchaseRequestCommentService purchaseRequestCommentService,
             ProcurementLeadTimeService procurementLeadTimeService,
+            DraftSlaService draftSlaService,
             ContractRepository contractRepository) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemCommentRepository = purchasePlanItemCommentRepository;
@@ -87,6 +89,7 @@ public class PurchasePlanItemService {
         this.purchaserSyncService = purchaserSyncService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
         this.procurementLeadTimeService = procurementLeadTimeService;
+        this.draftSlaService = draftSlaService;
         this.contractRepository = contractRepository;
     }
 
@@ -380,10 +383,14 @@ public class PurchasePlanItemService {
     }
 
     /**
-     * Рассчитывает дату завершения закупки на основе даты заявки и сложности.
-     * Формула общая с генерацией драфта — см. {@link ProcurementLeadTimeService}.
+     * Рассчитывает дату завершения закупки позиции на основе даты заявки и сложности.
+     * Позиция драфта считается по таблице SLA драфта своего года (см. {@link DraftSlaService}),
+     * позиция действующего плана — по сроку процедуры (см. {@link ProcurementLeadTimeService}).
      */
-    private LocalDate calculateNewContractDate(LocalDate requestDate, String complexity) {
+    private LocalDate calculateNewContractDate(PurchasePlanItem item, LocalDate requestDate, String complexity) {
+        if (Boolean.TRUE.equals(item.getIsDraft())) {
+            return draftSlaService.calculateNewContractDate(item.getYear(), requestDate, complexity);
+        }
         return procurementLeadTimeService.calculateNewContractDate(requestDate, complexity);
     }
 
@@ -401,7 +408,7 @@ public class PurchasePlanItemService {
                     
                     // Если изменяется дата заявки и есть сложность, автоматически пересчитываем дату нового договора
                     if (finalRequestDate != null && !finalRequestDate.equals(oldRequestDate) && item.getComplexity() != null) {
-                        LocalDate calculatedDate = calculateNewContractDate(finalRequestDate, item.getComplexity());
+                        LocalDate calculatedDate = calculateNewContractDate(item, finalRequestDate, item.getComplexity());
                         if (calculatedDate != null) {
                             finalNewContractDate = calculatedDate;
                         }
@@ -784,7 +791,7 @@ public class PurchasePlanItemService {
 
                     // Дата завершения закупки зависит от сложности — пересчитываем от даты заявки
                     if (item.getRequestDate() != null && trimmedComplexity != null) {
-                        LocalDate recalculated = calculateNewContractDate(item.getRequestDate(), trimmedComplexity);
+                        LocalDate recalculated = calculateNewContractDate(item, item.getRequestDate(), trimmedComplexity);
                         if (recalculated != null && !recalculated.equals(item.getNewContractDate())) {
                             purchasePlanItemChangeService.logChange(
                                 item.getId(),

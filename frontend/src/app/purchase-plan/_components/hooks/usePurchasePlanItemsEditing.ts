@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { PurchasePlanItem, PageResponse } from '../types/purchase-plan-items.types';
+import { PurchasePlanItem, PageResponse, DraftSlaDaysByComplexity } from '../types/purchase-plan-items.types';
 import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { calculateNewContractDate } from '../utils/date.utils';
 
@@ -34,7 +34,9 @@ export const usePurchasePlanItemsEditing = (
   sortDirection?: any,
   filters?: Record<string, string>,
   selectedMonths?: Set<number>,
-  holidayDateKeys?: Set<string>
+  holidayDateKeys?: Set<string>,
+  /** Таблица SLA драфта года (только в драфте): сроки по сложности для даты завершения */
+  draftSlaDays?: DraftSlaDaysByComplexity | null
 ) => {
   // Режим раздела: действующий план или драфт плана закупок
   const { isDraft } = usePurchasePlanMode();
@@ -137,7 +139,8 @@ export const usePurchasePlanItemsEditing = (
         const calculatedDate = calculateNewContractDate(
           normalizedRequestDate,
           item.complexity,
-          holidayDateKeys
+          holidayDateKeys,
+          draftSlaDays
         );
         if (calculatedDate) {
           normalizedNewContractDate = calculatedDate;
@@ -252,7 +255,7 @@ export const usePurchasePlanItemsEditing = (
       let newContractDate = field === 'newContractDate' ? normalizedDate : currentNewContractDate;
       
       if (field === 'requestDate' && item.complexity) {
-        const calculatedDate = calculateNewContractDate(normalizedDate, item.complexity, holidayDateKeys);
+        const calculatedDate = calculateNewContractDate(normalizedDate, item.complexity, holidayDateKeys, draftSlaDays);
         if (calculatedDate) {
           newContractDate = calculatedDate;
         }

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import CommentCountButton from '@/app/_components/comments/CommentCountButton';
-import { PurchasePlanItem } from '../types/purchase-plan-items.types';
+import { PurchasePlanItem, DraftSlaDaysByComplexity } from '../types/purchase-plan-items.types';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from '../utils/purchase-plan-items.utils';
 import GanttChart from '../GanttChart';
 import PurchasePlanDraftBudgetCell from './PurchasePlanDraftBudgetCell';
@@ -81,6 +81,8 @@ interface PurchasePlanItemsTableRowProps {
   /** Текущий пользователь — закупщик или администратор (может ставить «Проверено закупщиком») */
   canCheckPurchaser?: boolean;
   holidayDateKeys?: Set<string>;
+  /** Таблица SLA драфта года (только в драфте): сроки по сложности для даты завершения */
+  draftSlaDays?: DraftSlaDaysByComplexity | null;
   /** Первая строка таблицы — к ней и к её диаграмме Ганта привязаны шаги ознакомительного тура */
   isFirstRow?: boolean;
 }
@@ -146,6 +148,7 @@ export default function PurchasePlanItemsTableRow({
   onPurchaserCheckedToggle,
   canCheckPurchaser = false,
   holidayDateKeys,
+  draftSlaDays,
   isFirstRow = false,
 }: PurchasePlanItemsTableRowProps) {
   const isInactive = item.status === 'Исключена';
@@ -487,7 +490,7 @@ export default function PurchasePlanItemsTableRow({
                   // Пересчитываем newContractDate на основе requestDate и сложности
                   let finalNewContractDate = newContrDate;
                   if (item.complexity && reqDate) {
-                    const calculatedDate = calculateNewContractDate(reqDate, item.complexity, holidayDateKeys);
+                    const calculatedDate = calculateNewContractDate(reqDate, item.complexity, holidayDateKeys, draftSlaDays);
                     if (calculatedDate) {
                       finalNewContractDate = calculatedDate;
                     }

@@ -14,6 +14,7 @@ import { useFocusRestoreAfterFetch } from '../../../purchase-requests/_component
 import { useInfiniteScroll } from '../../../purchase-requests/_components/hooks/useInfiniteScroll';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 import { usePurchasePlanMode, appendDraftParam } from '../contexts/PurchasePlanModeContext';
+import { useDraftSla } from './useDraftSla';
 
 /** Колонки с текстовым фильтром «содержит», которые бэкенд принимает одноимённым параметром */
 const SIMPLE_TEXT_FILTER_PARAMS = [
@@ -973,6 +974,9 @@ export const usePurchasePlanItemsTable = () => {
   const holidayTo = `${(selectedYear ?? new Date().getFullYear()) + 2}-12-31`;
   const holidayDateKeys = useHolidayDateKeys(holidayFrom, holidayTo);
 
+  // Таблица SLA драфта выбранного года: сроки по сложности для дат позиций драфта
+  const draftSla = useDraftSla({ year: isDraft ? selectedYear : null });
+
   // Инициализируем editingHook после определения fetchData
   const editingHook = usePurchasePlanItemsEditing(
     data,
@@ -996,7 +1000,8 @@ export const usePurchasePlanItemsTable = () => {
     sortDirection,
     filtersHook.filters,
     selectedMonths,
-    holidayDateKeys
+    holidayDateKeys,
+    draftSla.daysByComplexity
   );
 
   // Восстановление фокуса после загрузки данных
@@ -1766,5 +1771,6 @@ export const usePurchasePlanItemsTable = () => {
     versions: versionsHook,
     suppliers: suppliersHook,
     holidayDateKeys,
+    draftSla,
   };
 };

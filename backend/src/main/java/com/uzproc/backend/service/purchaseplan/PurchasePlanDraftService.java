@@ -119,7 +119,7 @@ public class PurchasePlanDraftService {
     private final ContractRepository contractRepository;
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
-    private final ProcurementLeadTimeService procurementLeadTimeService;
+    private final DraftSlaService draftSlaService;
     private final PurchasePlanItemService purchasePlanItemService;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
     private final CurrentUserService currentUserService;
@@ -128,14 +128,14 @@ public class PurchasePlanDraftService {
             ContractRepository contractRepository,
             PurchasePlanItemRepository purchasePlanItemRepository,
             PurchaseRequestRepository purchaseRequestRepository,
-            ProcurementLeadTimeService procurementLeadTimeService,
+            DraftSlaService draftSlaService,
             PurchasePlanItemService purchasePlanItemService,
             PurchasePlanItemChangeService purchasePlanItemChangeService,
             CurrentUserService currentUserService) {
         this.contractRepository = contractRepository;
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
-        this.procurementLeadTimeService = procurementLeadTimeService;
+        this.draftSlaService = draftSlaService;
         this.purchasePlanItemService = purchasePlanItemService;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.currentUserService = currentUserService;
@@ -197,6 +197,8 @@ public class PurchasePlanDraftService {
         }
 
         Map<Long, PurchaseRequest> purchaseRequestMap = loadPurchaseRequests(contracts);
+        // Сроки по сложности из таблицы SLA драфта этого года: читаются один раз на всё формирование
+        Map<Integer, Integer> slaDaysByComplexity = draftSlaService.getTotalDaysByComplexity(planYear);
         // Закупщик из заявки → пользователь: одна и та же строка ищется один раз за формирование
         Map<String, Optional<User>> purchaserByName = new HashMap<>();
 
@@ -245,9 +247,9 @@ public class PurchasePlanDraftService {
                 Set<String> manualFields = manualFieldsByItem.getOrDefault(existing.getId(), Set.of());
                 PurchasePlanItem manualValues = copyManualFields(existing, new PurchasePlanItem(), manualFields);
                 resetForRegeneration(existing);
-                fillDraftItem(existing, contract, request, planYear, purchaserByName);
+                fillDraftItem(existing, contract, request, planYear, purchaserByName, slaDaysByComplexity);
                 copyManualFields(manualValues, existing, manualFields);
-                recalculateNewContractDateIfNeeded(existing, manualFields);
+                recalculateNewContractDateIfNeeded(existing, manualFields, slaDaysByComplexity);
                 if (excludedFromPlanning) {
                     // Договор исключён «глазиком» — позиция возвращается исключённой
                     existing.setStatus(PurchasePlanItemStatus.NOT_ACTUAL);
@@ -255,7 +257,7 @@ public class PurchasePlanDraftService {
                 toSave.add(existing);
                 restored++;
             } else {
-                toSave.add(buildDraftItem(contract, request, planYear, purchaserByName));
+                toSave.add(buildDraftItem(contract, request, planYear, purchaserByName, slaDaysByComplexity));
                 created++;
             }
         }
@@ -496,9 +498,10 @@ public class PurchasePlanDraftService {
      * Собирает новую позицию драфта из договора и связанной заявки.
      */
     private PurchasePlanItem buildDraftItem(Contract contract, PurchaseRequest request, int planYear,
-                                            Map<String, Optional<User>> purchaserByName) {
+                                            Map<String, Optional<User>> purchaserByName,
+                                            Map<Integer, Integer> slaDaysByComplexity) {
         PurchasePlanItem item = new PurchasePlanItem();
-        fillDraftItem(item, contract, request, planYear, purchaserByName);
+        fillDraftItem(item, contract, request, planYear, purchaserByName, slaDaysByComplexity);
         return item;
     }
 
@@ -519,14 +522,15 @@ public class PurchasePlanDraftService {
 
     /**
      * Дата завершения закупки зависит от даты заявки и сложности: если руками меняли их, но не саму дату завершения,
-     * пересчитывает её от сохранённых значений той же формулой, что при ручном изменении.
+     * пересчитывает её от сохранённых значений по таблице SLA драфта, как при ручном изменении.
      */
-    private void recalculateNewContractDateIfNeeded(PurchasePlanItem item, Set<String> manualFields) {
+    private void recalculateNewContractDateIfNeeded(PurchasePlanItem item, Set<String> manualFields,
+                                                    Map<Integer, Integer> slaDaysByComplexity) {
         boolean dependsOnManualValues = manualFields.contains("requestDate") || manualFields.contains("complexity");
         if (manualFields.contains("newContractDate") || !dependsOnManualValues || item.getRequestDate() == null) {
             return;
         }
-        LocalDate newContractDate = procurementLeadTimeService.calculateNewContractDate(item.getRequestDate(), item.getComplexity());
+        LocalDate newContractDate = draftSlaService.calculateNewContractDate(slaDaysByComplexity, item.getRequestDate(), item.getComplexity());
         item.setNewContractDate(newContractDate != null ? newContractDate : item.getRequestDate());
     }
 
@@ -559,10 +563,11 @@ public class PurchasePlanDraftService {
     /**
      * Заполняет позицию драфта из договора и связанной заявки.
      *
-     * @param purchaserByName кеш поиска пользователя по закупщику из заявки в рамках одного формирования
+     * @param purchaserByName     кеш поиска пользователя по закупщику из заявки в рамках одного формирования
+     * @param slaDaysByComplexity сроки по сложности из таблицы SLA драфта года (закупка + нетиповой договор)
      */
     private void fillDraftItem(PurchasePlanItem item, Contract contract, PurchaseRequest request, int planYear,
-                               Map<String, Optional<User>> purchaserByName) {
+                               Map<String, Optional<User>> purchaserByName, Map<Integer, Integer> slaDaysByComplexity) {
         item.setIsDraft(Boolean.TRUE);
         item.setSourceContractId(contract.getId());
         item.setYear(planYear);
@@ -606,7 +611,7 @@ public class PurchasePlanDraftService {
 
         // Стартовая раскладка Ганта: заявка подаётся за DEFAULT_REQUEST_LEAD_DAYS дней до окончания
         // текущего договора, но не раньше января года планирования; завершение закупки считается
-        // от даты заявки и сложности — той же формулой, что и при ручном изменении даты в плане
+        // от даты заявки и сложности по таблице SLA драфта года — как и при ручном изменении даты
         if (currentEnd != null) {
             LocalDate planYearStart = LocalDate.of(planYear, 1, 1);
             LocalDate requestDate = currentEnd.plusDays(1).minusDays(DEFAULT_REQUEST_LEAD_DAYS);
@@ -615,7 +620,7 @@ public class PurchasePlanDraftService {
             }
             item.setRequestDate(requestDate);
 
-            LocalDate newContractDate = procurementLeadTimeService.calculateNewContractDate(requestDate, complexity);
+            LocalDate newContractDate = draftSlaService.calculateNewContractDate(slaDaysByComplexity, requestDate, complexity);
             // Сложность в драфте заполняется всегда, но подстрахуемся от неизвестного значения
             item.setNewContractDate(newContractDate != null ? newContractDate : requestDate);
         }

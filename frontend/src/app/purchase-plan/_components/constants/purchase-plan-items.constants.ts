@@ -193,3 +193,6 @@ export const COMPLEXITY_OPTIONS = [
 
 /** Подсказка у недоступных действий драфта для пользователей без прав */
 export const DRAFT_MANAGE_FORBIDDEN_TITLE = 'Доступно только закупщикам и администраторам';
+
+/** Верхняя граница срока этапа в таблице SLA драфта, рабочих дней (как на бэкенде) */
+export const DRAFT_SLA_MAX_DAYS = 365;

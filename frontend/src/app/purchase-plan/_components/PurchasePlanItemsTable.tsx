@@ -20,6 +20,8 @@ import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumn
 import PurchasePlanItemsTableColumnsHeader from './ui/PurchasePlanItemsTableColumnsHeader';
 import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
 import PurchasePlanDraftToolbar from './ui/PurchasePlanDraftToolbar';
+import PurchasePlanDraftSlaModal from './ui/PurchasePlanDraftSlaModal';
+import { DraftSlaRow } from './types/purchase-plan-items.types';
 import PurchasePlanExcludedFilterButton from './ui/PurchasePlanExcludedFilterButton';
 
 // Модальные окнаф
@@ -39,6 +41,7 @@ import { usePurchasePlanTour } from './hooks/usePurchasePlanTour';
 import { usePurchasePlanStatusPresets } from './hooks/usePurchasePlanStatusPresets';
 import Tour from '@/app/_components/tour/ui/Tour';
 import TourButton from '@/app/_components/tour/ui/TourButton';
+import PurchasePlanDraftGuideButton from './ui/PurchasePlanDraftGuideButton';
 
 /**
  * Внутренний компонент таблицы, который использует хуки
@@ -340,6 +343,14 @@ function PurchasePlanItemsTableContent() {
   const handleDraftRefresh = useCallback(() => {
     table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
   }, [table.fetchData, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths]);
+
+  // Сохранение таблицы SLA драфта: даты завершения позиций пересчитаны на сервере — перезагружаем таблицу
+  const { saveTable: saveDraftSla } = table.draftSla;
+  const handleDraftSlaSave = useCallback(async (rows: DraftSlaRow[]) => {
+    if (await saveDraftSla(rows)) {
+      handleDraftRefresh();
+    }
+  }, [saveDraftSla, handleDraftRefresh]);
 
   // Действия над драфтом плана закупок (формирование из договоров, очистка)
   const draftActions = usePurchasePlanDraftActions({
@@ -646,6 +657,20 @@ function PurchasePlanItemsTableContent() {
           onGenerate={draftActions.generateDraft}
           onClear={draftActions.clearDraft}
           canManage={table.modals.canEdit}
+          slaTable={table.draftSla.table}
+          onOpenSla={table.draftSla.openModal}
+        />
+      )}
+      {isDraft && (
+        <PurchasePlanDraftSlaModal
+          isOpen={table.draftSla.isModalOpen}
+          year={table.selectedYear}
+          table={table.draftSla.table}
+          canEdit={table.modals.canEdit}
+          isSaving={table.draftSla.isSaving}
+          errorMessage={table.draftSla.errorMessage}
+          onSave={handleDraftSlaSave}
+          onClose={table.draftSla.closeModal}
         />
       )}
 
@@ -685,7 +710,12 @@ function PurchasePlanItemsTableContent() {
         onCloseVersion={handleCloseVersion}
         canEdit={true} // TODO: получить из контекста или пропсов
         columnsMenuButtonRef={table.columns.columnsMenuButtonRef}
-        actions={<TourButton onClick={tour.start} />}
+        actions={
+          <div className="flex items-center gap-2">
+            {isDraft && <PurchasePlanDraftGuideButton year={table.selectedYear} />}
+            <TourButton onClick={tour.start} />
+          </div>
+        }
       />
 
       {/* Блок с кнопками управления и информацией о записях */}
@@ -939,6 +969,7 @@ function PurchasePlanItemsTableContent() {
             canCheckPurchaser={canCheckPurchaser}
             isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
             holidayDateKeys={table.holidayDateKeys}
+            draftSlaDays={table.draftSla.daysByComplexity}
           />
         </table>
 

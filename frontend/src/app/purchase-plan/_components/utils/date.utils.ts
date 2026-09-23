@@ -1,3 +1,5 @@
+import { DraftSlaDaysByComplexity } from '../types/purchase-plan-items.types';
+
 function toLocalDateKey(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -27,9 +29,14 @@ export const addWorkingDays = (date: Date, workingDays: number, holidayKeys?: Se
   return result;
 };
 
-// Функция для получения количества рабочих дней на основе сложности
-export const getWorkingDaysByComplexity = (complexity: string | null | undefined): number | null => {
+// Функция для получения количества рабочих дней на основе сложности.
+// Для драфта передаётся таблица SLA драфта года (SLA закупки + SLA договора), для плана — не передаётся.
+export const getWorkingDaysByComplexity = (
+  complexity: string | null | undefined,
+  draftSlaDays?: DraftSlaDaysByComplexity | null
+): number | null => {
   if (!complexity) return null;
+  if (draftSlaDays) return draftSlaDays[complexity.trim()] ?? null;
   const complexityNum = parseInt(complexity);
   switch (complexityNum) {
     case 1: return 7;
@@ -44,11 +51,12 @@ export const getWorkingDaysByComplexity = (complexity: string | null | undefined
 export const calculateNewContractDate = (
   requestDate: string | null,
   complexity: string | null,
-  holidayKeys?: Set<string>
+  holidayKeys?: Set<string>,
+  draftSlaDays?: DraftSlaDaysByComplexity | null
 ): string | null => {
   if (!requestDate || !complexity) return null;
   
-  const workingDays = getWorkingDaysByComplexity(complexity);
+  const workingDays = getWorkingDaysByComplexity(complexity, draftSlaDays);
   if (!workingDays) return null;
   
   try {
