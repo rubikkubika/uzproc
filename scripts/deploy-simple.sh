@@ -118,14 +118,52 @@ echo "Files copied to server"
 
 echo ""
 echo "Step 6: Updating containers on server..."
-# Каталог данных ЭТП: создаём и отдаём пользователю контейнера frontend (uid 1001) через одноразовый контейнер (без sudo)
-ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && mkdir -p etp-data && docker run --rm -v $REMOTE_PATH/etp-data:/data alpine chown -R 1001:1001 /data"
-ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose down && docker load -i uzproc-frontend.tar && docker load -i uzproc-backend.tar && docker load -i uzproc-invoice-parser.tar && rm -f uzproc-frontend.tar uzproc-backend.tar uzproc-invoice-parser.tar && docker compose up -d --no-build && docker compose ps" || {
+# Каталог данных ЭТП: создаём и отдаём пользователю контейнера frontend (uid 1001) через одноразовый контейнер (без sudo).
+# Владелец проверяется заранее: если уже 1001 — контейнер не запускаем.
+# Образ берём nginx:alpine (уже есть на сервере из docker-compose), чтобы не тянуть alpine заново —
+# именно распаковка свежескачанного образа периодически падает с
+# "failed to unmount /tmp/containerd-mount...: device or resource busy".
+# Шаг не критичен для приложения, поэтому делаем 3 попытки и при неудаче продолжаем деплой с предупреждением.
+ETP_CHOWN_CMD="cd $REMOTE_PATH && mkdir -p etp-data && if [ \"\$(stat -c %u etp-data)\" = 1001 ]; then echo 'etp-data owner already 1001'; else docker run --rm -v $REMOTE_PATH/etp-data:/data nginx:alpine chown -R 1001:1001 /data; fi"
+ETP_CHOWN_OK=false
+for ETP_CHOWN_ATTEMPT in 1 2 3; do
+  if ssh -o ConnectTimeout=10 "$SERVER" "$ETP_CHOWN_CMD"; then
+    ETP_CHOWN_OK=true
+    break
+  fi
+  echo "Warning: attempt $ETP_CHOWN_ATTEMPT to prepare etp-data failed, retrying in 5s..."
+  sleep 5
+done
+if [ "$ETP_CHOWN_OK" != true ]; then
+  echo "Warning: could not set etp-data owner to 1001:1001 — continuing deployment."
+  echo "         ETP sync may fail to write; fix manually: ssh $SERVER \"cd $REMOTE_PATH && docker run --rm -v $REMOTE_PATH/etp-data:/data nginx:alpine chown -R 1001:1001 /data\""
+fi
+ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose down && docker load -i uzproc-frontend.tar && docker load -i uzproc-backend.tar && docker load -i uzproc-invoice-parser.tar && rm -f uzproc-frontend.tar uzproc-backend.tar uzproc-invoice-parser.tar" || {
   echo ""
-  echo "ERROR: failed to update containers on server — services may be down."
+  echo "ERROR: failed to load new images on server — services may be down."
   echo "Check: ssh $SERVER 'cd $REMOTE_PATH && docker compose ps -a' and retry: docker compose up -d --no-build"
   exit 1
 }
+
+# Старт контейнеров: docker 29 с containerd-снапшоттером изредка падает на
+# "failed to unmount /tmp/containerd-mount...: device or resource busy" (транзиентно,
+# повтор той же команды проходит). Без ретрая прод остаётся лежать, поэтому до 3 попыток.
+COMPOSE_UP_OK=false
+for UP_ATTEMPT in 1 2 3; do
+  if ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose up -d --no-build"; then
+    COMPOSE_UP_OK=true
+    break
+  fi
+  echo "Warning: attempt $UP_ATTEMPT to start containers failed, retrying in 10s..."
+  sleep 10
+done
+ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose ps" || true
+if [ "$COMPOSE_UP_OK" != true ]; then
+  echo ""
+  echo "ERROR: failed to start containers on server after 3 attempts — services may be down."
+  echo "Check: ssh $SERVER 'cd $REMOTE_PATH && docker compose ps -a' and retry: docker compose up -d --no-build"
+  exit 1
+fi
 
 echo ""
 echo "Step 7: Starting ETP (b2biz.uz) sync in background..."
