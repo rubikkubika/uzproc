@@ -13,7 +13,7 @@ export const EMPTY_GUIDE_DATA: GuideData = {
   prevYear: null,
   sla: null,
   purchasers: [],
-  subjects: { bad: null, good: null },
+  subjects: { bad: null },
   checked: [],
 };
 

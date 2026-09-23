@@ -4,7 +4,6 @@ import React from 'react';
 import type { GuideData } from '../types/draft-guide.types';
 import {
   DRAFT_GUIDE_FOOTER_NOTE,
-  DRAFT_GUIDE_KICKER,
   DRAFT_GUIDE_LEAD,
   DRAFT_GUIDE_STEPS,
   DRAFT_GUIDE_TITLE,
@@ -23,8 +22,7 @@ export default function DraftGuideDocument({ data }: DraftGuideDocumentProps) {
   return (
     <div className="guide-document mx-auto w-full max-w-[794px] bg-white rounded-lg shadow-sm border border-gray-200 px-8 py-6 flex flex-col gap-4">
       <header className="pb-4 border-b border-gray-200">
-        <div className="text-xs font-medium uppercase tracking-wide text-amber-800">{DRAFT_GUIDE_KICKER}</div>
-        <h1 className="mt-1 text-xl font-semibold text-gray-900">
+        <h1 className="text-xl font-semibold text-gray-900">
           {DRAFT_GUIDE_TITLE}
           {data.year !== null ? ` · ${data.year} год` : ''}
         </h1>

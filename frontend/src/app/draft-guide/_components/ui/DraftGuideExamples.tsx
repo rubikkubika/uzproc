@@ -3,12 +3,16 @@
 import React from 'react';
 import { CircleCheck, Eye } from 'lucide-react';
 import type { GuideCheckedRow, GuidePurchaserRow, GuideSubjectExamples } from '../types/draft-guide.types';
-import { GUIDE_UNASSIGNED } from '../constants/draft-guide.constants';
+import {
+  GUIDE_GOOD_SUBJECT_EXAMPLE,
+  GUIDE_SUBJECT_PARTS,
+  GUIDE_UNASSIGNED,
+} from '../constants/draft-guide.constants';
 
 /** Сводка по закупщикам текущего драфта: строка «Не назначен» подсвечена, как в интерфейсе. */
 export function GuidePurchasersExample({ rows }: { rows: GuidePurchaserRow[] }) {
   if (rows.length === 0) {
-    return <div className="text-xs text-gray-500">Позиций в драфте пока нет — сводка появится после формирования.</div>;
+    return <div className="text-xs text-gray-500">Позиций в драфте пока нет — сводка появится вместе с ними.</div>;
   }
 
   return (
@@ -35,23 +39,40 @@ export function GuidePurchasersExample({ rows }: { rows: GuidePurchaserRow[] }) 
   );
 }
 
-/** Пара формулировок предмета закупки из реальных позиций драфта. */
+/**
+ * Формулировка предмета закупки: слева — как сейчас записано в драфте,
+ * справа — образец с разбором по частям.
+ */
 export function GuideSubjectsExample({ subjects }: { subjects: GuideSubjectExamples }) {
-  if (!subjects.bad && !subjects.good) {
-    return <div className="text-xs text-gray-500">Примеры появятся, когда в драфте будут позиции.</div>;
-  }
-
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      <div className="rounded border border-gray-300 bg-gray-50 px-3 py-2">
-        <div className="text-xs font-medium text-red-700 mb-1">Так не надо</div>
-        <div className="text-xs text-gray-500 line-through">{subjects.bad ?? '—'}</div>
-        <div className="text-[11px] text-gray-500 mt-1">Из драфта: не видно, что именно закупаем</div>
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="rounded border border-gray-300 bg-gray-50 px-3 py-2">
+          <div className="text-xs font-medium text-red-700 mb-1">Так не надо</div>
+          <div className="text-xs text-gray-500 line-through">{subjects.bad ?? 'Договор №123'}</div>
+          <div className="text-[11px] text-gray-500 mt-1">
+            {subjects.bad
+              ? 'Так записано в драфте сейчас: это контрагент или документ, а не предмет закупки'
+              : 'Номер документа вместо предмета закупки'}
+          </div>
+        </div>
+        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2">
+          <div className="text-xs font-medium text-blue-800 mb-1">Так надо</div>
+          <div className="text-xs text-gray-900">{GUIDE_GOOD_SUBJECT_EXAMPLE}</div>
+          <div className="text-[11px] text-gray-500 mt-1">Понятно, что закупаем, в каком объёме и для кого</div>
+        </div>
       </div>
-      <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2">
-        <div className="text-xs font-medium text-blue-800 mb-1">Так надо</div>
-        <div className="text-xs text-gray-900">{subjects.good ?? '—'}</div>
-        <div className="text-[11px] text-gray-500 mt-1">Из драфта: понятно, что, для кого и зачем</div>
+
+      <div className="rounded border border-gray-300 overflow-hidden">
+        {GUIDE_SUBJECT_PARTS.map(part => (
+          <div
+            key={part.part}
+            className="flex items-baseline gap-3 px-2 py-2 border-b border-gray-200 last:border-b-0 text-xs"
+          >
+            <span className="w-32 flex-shrink-0 text-gray-500">{part.part}</span>
+            <span className="text-gray-900">{part.example}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

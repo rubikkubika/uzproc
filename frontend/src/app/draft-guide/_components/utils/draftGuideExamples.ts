@@ -5,7 +5,6 @@ import type {
   GuideSubjectExamples,
 } from '../types/draft-guide.types';
 import {
-  GUIDE_GOOD_SUBJECT_MIN_WORDS,
   GUIDE_PURCHASERS_LIMIT,
   GUIDE_UNASSIGNED,
   GUIDE_WEAK_SUBJECT_MAX_LENGTH,
@@ -32,26 +31,18 @@ function subjectOf(item: PurchasePlanItem): string | null {
 }
 
 /**
- * Примеры формулировок предмета закупки из позиций драфта:
- * «плохо» — номер договора или название контрагента вместо предмета,
- * «хорошо» — развёрнутая формулировка из нескольких слов.
+ * Пример «так не надо» из позиций драфта: номер договора или название контрагента
+ * вместо предмета закупки. Образец удачной формулировки задан в инструкции —
+ * в самом драфте такие встречаются редко.
  */
 export function pickSubjectExamples(items: PurchasePlanItem[]): GuideSubjectExamples {
-  const subjects = items.map(subjectOf).filter((value): value is string => value !== null);
-
-  const weak = subjects
+  const weak = items
+    .map(subjectOf)
+    .filter((value): value is string => value !== null)
     .filter(value => GUIDE_WEAK_SUBJECT_PATTERN.test(value) || value.length <= GUIDE_WEAK_SUBJECT_MAX_LENGTH)
     .sort((a, b) => a.length - b.length);
 
-  const strong = subjects
-    .filter(value => value.split(/\s+/).length >= GUIDE_GOOD_SUBJECT_MIN_WORDS)
-    .sort((a, b) => a.length - b.length);
-
-  return {
-    bad: weak[0] ?? null,
-    // Из подходящих по длине берём среднюю формулировку: самая длинная обычно перегружена деталями
-    good: strong[Math.floor(strong.length / 2)] ?? null,
-  };
+  return { bad: weak[0] ?? null };
 }
 
 /**
