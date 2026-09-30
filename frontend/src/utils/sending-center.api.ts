@@ -207,29 +207,38 @@ export async function sendDeliveryWeeklyReport(
   return response.json();
 }
 
-/** Закупка без сложности (Центр отправки → Закупки → «Ошибка сложности»). */
-export interface ComplexityErrorPurchase {
+/** Закупка, связанная с заявкой без сложности. */
+export interface ComplexityErrorLinkedPurchase {
   id: number;
   innerId: string | null;
-  purchaseRequestInnerId: string | null;
+  link: string;
+}
+
+/** Заявка без сложности (Центр отправки → Закупки → «Ошибка сложности»). */
+export interface ComplexityErrorRequest {
+  /** ID заявки в системе — маршрут /purchase-request/{id} */
+  id: number;
+  innerId: string | null;
   name: string | null;
   cfo: string | null;
-  creationDate: string | null;
   status: string | null;
+  creationDate: string | null;
   link: string;
-  /** Закупка уже была в отправленном письме за этот год */
+  /** Связанные закупки (может быть пусто) */
+  purchases: ComplexityErrorLinkedPurchase[];
+  /** Заявка уже была в отправленном письме за этот год */
   alreadySent: boolean;
 }
 
-/** Закупщик и его закупки без сложности. */
+/** Закупщик и его заявки без сложности. */
 export interface ComplexityErrorPurchaser {
   /** Ключ для отправки; пустая строка — закупщик не указан */
   purchaserKey: string;
   purchaserName: string;
   email: string | null;
-  purchaseCount: number;
+  requestCount: number;
   notSentCount: number;
-  purchases: ComplexityErrorPurchase[];
+  requests: ComplexityErrorRequest[];
   lastSentAt: string | null;
   lastSentTo: string | null;
   lastSentBy: string | null;
@@ -238,7 +247,7 @@ export interface ComplexityErrorPurchaser {
 /** Предпросмотр «Ошибки сложности» за текущий год. */
 export interface ComplexityErrorPreview {
   year: number;
-  purchaseCount: number;
+  requestCount: number;
   purchaserCount: number;
   withoutEmailCount: number;
   cc: string[];
@@ -250,18 +259,18 @@ export interface ComplexityErrorPreview {
 /** Итог отправки уведомлений «Ошибка сложности». */
 export interface ComplexityErrorSendResult {
   sentCount: number;
-  purchaseCount: number;
+  requestCount: number;
   sentTo: string[];
   skippedWithoutEmail: string[];
   errors: string[];
 }
 
-/** Закупки текущего года без сложности по закупщикам. */
+/** Заявки текущего года без сложности по закупщикам. */
 export async function fetchComplexityErrors(signal?: AbortSignal): Promise<ComplexityErrorPreview> {
   const url = `${getBackendUrl()}/api/sending-center/purchases/complexity-errors`;
   const response = await fetch(url, { signal });
   if (!response.ok) {
-    throw new Error('Не удалось загрузить закупки без сложности');
+    throw new Error('Не удалось загрузить заявки без сложности');
   }
   return response.json();
 }
@@ -280,6 +289,26 @@ export async function sendComplexityErrors(purchaserKey?: string): Promise<Compl
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || data.message || 'Не удалось отправить уведомления');
+  }
+  return response.json();
+}
+
+/** Итог тестовой отправки «Ошибки сложности»: чей список взят и куда ушло письмо. */
+export interface ComplexityErrorTestSendResult {
+  recipient: string;
+  purchaserName: string;
+  purchaserEmail: string | null;
+  requestCount: number;
+  subject: string;
+}
+
+/** Тестовое письмо: список случайного закупщика, отправка только на тестовый адрес (без копии и без отметки). */
+export async function sendComplexityErrorsTest(): Promise<ComplexityErrorTestSendResult> {
+  const url = `${getBackendUrl()}/api/sending-center/purchases/complexity-errors/send-test`;
+  const response = await fetch(url, { method: 'POST' });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || data.message || 'Не удалось отправить тестовое письмо');
   }
   return response.json();
 }

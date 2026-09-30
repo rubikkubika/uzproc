@@ -1,6 +1,6 @@
 import { Send } from 'lucide-react';
 import type { ComplexityErrorPurchaser } from '@/utils/sending-center.api';
-import ComplexityErrorPurchaseList from './ComplexityErrorPurchaseList';
+import ComplexityErrorRequestList from './ComplexityErrorRequestList';
 import { formatSentDate } from '../utils/complexity-errors.utils';
 
 interface ComplexityErrorPurchaserRowProps {
@@ -12,7 +12,7 @@ interface ComplexityErrorPurchaserRowProps {
   onSend: () => void;
 }
 
-/** Строка закупщика: ФИО и адрес, закупки без сложности, статус отправки и кнопка «Отправить». */
+/** Строка закупщика: ФИО и адрес, заявки без сложности, статус отправки и кнопка «Отправить». */
 export default function ComplexityErrorPurchaserRow({
   purchaser,
   expanded,
@@ -32,9 +32,9 @@ export default function ComplexityErrorPurchaserRow({
           {purchaser.email ?? (purchaser.purchaserKey ? 'нет адреса в справочнике' : 'письмо отправить некому')}
         </div>
       </td>
-      <td className="px-3 py-2 text-right text-gray-900">{purchaser.purchaseCount}</td>
+      <td className="px-3 py-2 text-right text-gray-900">{purchaser.requestCount}</td>
       <td className="px-3 py-2">
-        <ComplexityErrorPurchaseList purchases={purchaser.purchases} expanded={expanded} onToggle={onToggle} />
+        <ComplexityErrorRequestList requests={purchaser.requests} expanded={expanded} onToggle={onToggle} />
       </td>
       <td className="px-3 py-2 whitespace-nowrap">
         {sent ? (

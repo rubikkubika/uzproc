@@ -2,6 +2,7 @@ package com.uzproc.backend.controller.sendingcenter;
 
 import com.uzproc.backend.dto.sendingcenter.ComplexityErrorPreviewDto;
 import com.uzproc.backend.dto.sendingcenter.ComplexityErrorSendResultDto;
+import com.uzproc.backend.dto.sendingcenter.ComplexityErrorTestSendResultDto;
 import com.uzproc.backend.service.sendingcenter.ComplexityErrorService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +36,12 @@ public class PurchaseSendingController {
         String purchaserKey = body != null && body.get("purchaserKey") != null
                 ? String.valueOf(body.get("purchaserKey")) : null;
         return ResponseEntity.ok(complexityErrorService.send(purchaserKey));
+    }
+
+    /** Тестовое письмо: список случайного закупщика уходит только на тестовый адрес, без копии и журнала. */
+    @PostMapping("/complexity-errors/send-test")
+    public ResponseEntity<ComplexityErrorTestSendResultDto> sendComplexityErrorsTest() {
+        return ResponseEntity.ok(complexityErrorService.sendTest());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

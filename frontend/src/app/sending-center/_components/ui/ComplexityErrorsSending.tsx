@@ -1,18 +1,18 @@
 'use client';
 
-import { Mail, ExternalLink } from 'lucide-react';
+import { Mail, ExternalLink, FlaskConical } from 'lucide-react';
 import { useComplexityErrors } from '../hooks/useComplexityErrors';
 import SendingStatusMessage from './SendingStatusMessage';
 import ComplexityErrorsTable from './ComplexityErrorsTable';
 
 /**
- * Подраздел «Ошибка сложности» вкладки «Закупки»: закупки текущего года без сложности по закупщикам
+ * Подраздел «Ошибка сложности» вкладки «Закупки»: заявки текущего года без сложности по закупщикам
  * и ручная отправка писем с просьбой создать запрос в поддержку 1С.
  */
 export default function ComplexityErrorsSending() {
   const {
-    preview, loading, error, sendMessage, sendingKey, isSendingAll, sendableCount,
-    expanded, toggleExpanded, sendOne, sendAll,
+    preview, loading, error, sendMessage, sendingKey, isSendingAll, isSendingTest, sendableCount,
+    expanded, toggleExpanded, sendOne, sendAll, sendTest,
   } = useComplexityErrors();
 
   return (
@@ -26,7 +26,7 @@ export default function ComplexityErrorsSending() {
             <h2 className="text-lg font-semibold text-gray-900">Ошибка сложности</h2>
             <p className="text-sm text-gray-700 mt-1">
               {preview
-                ? `${preview.purchaseCount} закупок без сложности у ${preview.purchaserCount} закупщиков за ${preview.year}`
+                ? `${preview.requestCount} заявок без сложности у ${preview.purchaserCount} закупщиков за ${preview.year}`
                 : loading ? 'Загрузка…' : '—'}
               {preview && preview.withoutEmailCount > 0 && (
                 <span className="text-red-500"> · без адреса: {preview.withoutEmailCount}</span>
@@ -42,15 +42,27 @@ export default function ComplexityErrorsSending() {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={sendAll}
-            disabled={sendingKey !== null || loading || sendableCount === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <Mail className="w-4 h-4" />
-            {isSendingAll ? 'Отправка…' : 'Отправить всем'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={sendingKey !== null || loading || !preview || preview.requestCount === 0}
+              title="Письмо со списком случайного закупщика — только на тестовый адрес, без копии и без отметки «Отправлено»"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <FlaskConical className="w-4 h-4" />
+              {isSendingTest ? 'Отправка…' : 'Отправить тестовое письмо'}
+            </button>
+            <button
+              type="button"
+              onClick={sendAll}
+              disabled={sendingKey !== null || loading || sendableCount === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Mail className="w-4 h-4" />
+              {isSendingAll ? 'Отправка…' : 'Отправить всем'}
+            </button>
+          </div>
         </div>
 
         {preview && (

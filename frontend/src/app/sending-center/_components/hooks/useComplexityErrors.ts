@@ -4,16 +4,19 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   fetchComplexityErrors,
   sendComplexityErrors,
+  sendComplexityErrorsTest,
   type ComplexityErrorPreview,
 } from '@/utils/sending-center.api';
 import { SendingMessage } from '../types/purchase-sending.types';
-import { buildSendResultText } from '../utils/complexity-errors.utils';
+import { buildSendResultText, buildTestSendResultText } from '../utils/complexity-errors.utils';
 
 /** Ключ «отправки всем» в состоянии sendingKey. */
 const SEND_ALL_KEY = '__all__';
+/** Ключ тестовой отправки в состоянии sendingKey. */
+const SEND_TEST_KEY = '__test__';
 
 /**
- * Подраздел «Ошибка сложности» вкладки «Закупки»: закупки текущего года без сложности
+ * Подраздел «Ошибка сложности» вкладки «Закупки»: заявки текущего года без сложности
  * по закупщикам, ручная отправка уведомлений (одному закупщику или всем).
  */
 export function useComplexityErrors() {
@@ -32,7 +35,7 @@ export function useComplexityErrors() {
       setPreview(await fetchComplexityErrors(signal));
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить закупки без сложности');
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить заявки без сложности');
       setPreview(null);
     } finally {
       setLoading(false);
@@ -72,6 +75,22 @@ export function useComplexityErrors() {
     send();
   }, [preview, send]);
 
+  /** Тестовое письмо на тестовый адрес: журнал не меняется, поэтому список не перезагружаем */
+  const sendTest = useCallback(async () => {
+    setSendingKey(SEND_TEST_KEY);
+    setSendMessage(null);
+    try {
+      setSendMessage({ type: 'success', text: buildTestSendResultText(await sendComplexityErrorsTest()) });
+    } catch (err) {
+      setSendMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Не удалось отправить тестовое письмо',
+      });
+    } finally {
+      setSendingKey(null);
+    }
+  }, []);
+
   const toggleExpanded = useCallback((purchaserKey: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -90,10 +109,12 @@ export function useComplexityErrors() {
     sendMessage,
     sendingKey,
     isSendingAll: sendingKey === SEND_ALL_KEY,
+    isSendingTest: sendingKey === SEND_TEST_KEY,
     sendableCount,
     expanded,
     toggleExpanded,
     sendOne: send,
     sendAll,
+    sendTest,
   };
 }

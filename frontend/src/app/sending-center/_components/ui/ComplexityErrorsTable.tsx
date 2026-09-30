@@ -9,7 +9,7 @@ interface ComplexityErrorsTableProps {
   onSend: (purchaserKey: string) => void;
 }
 
-/** Компактная таблица закупщиков с закупками без сложности. */
+/** Компактная таблица закупщиков с заявками без сложности. */
 export default function ComplexityErrorsTable({
   purchasers,
   expanded,
@@ -18,7 +18,7 @@ export default function ComplexityErrorsTable({
   onSend,
 }: ComplexityErrorsTableProps) {
   if (purchasers.length === 0) {
-    return <p className="text-sm text-gray-500">Все закупки этого года со сложностью — отправлять нечего.</p>;
+    return <p className="text-sm text-gray-500">Все заявки этого года со сложностью — отправлять нечего.</p>;
   }
 
   return (
@@ -27,8 +27,8 @@ export default function ComplexityErrorsTable({
         <thead>
           <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
             <th className="px-3 py-2 text-left border-b border-gray-200">Закупщик</th>
-            <th className="px-3 py-2 text-right border-b border-gray-200">Закупок</th>
-            <th className="px-3 py-2 text-left border-b border-gray-200">Закупки</th>
+            <th className="px-3 py-2 text-right border-b border-gray-200">Заявок</th>
+            <th className="px-3 py-2 text-left border-b border-gray-200">Заявки</th>
             <th className="px-3 py-2 text-left border-b border-gray-200">Статус</th>
             <th className="px-3 py-2 text-center border-b border-gray-200">Действие</th>
           </tr>

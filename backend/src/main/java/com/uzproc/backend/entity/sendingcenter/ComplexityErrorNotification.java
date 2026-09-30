@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * Отправленное уведомление «Ошибка сложности» (Центр отправки → Закупки):
- * письмо закупщику со списком закупок года без сложности.
+ * письмо закупщику со списком заявок года без сложности.
  */
 @Entity
 @Table(name = "complexity_error_notifications")
@@ -22,7 +22,7 @@ public class ComplexityErrorNotification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Год закупок (по дате создания закупки). */
+    /** Год заявок (по дате создания заявки). */
     @Column(name = "year", nullable = false)
     private Integer year;
 
@@ -40,10 +40,15 @@ public class ComplexityErrorNotification {
     @Column(name = "cc_emails", length = 1000)
     private String ccEmails;
 
-    /** ID закупок из письма через запятую. */
-    @Column(name = "purchase_ids", nullable = false, columnDefinition = "TEXT")
+    /** ID заявок (purchase_requests.id) из письма через запятую — по ним считается «+N новых» (V164). */
+    @Column(name = "request_ids", columnDefinition = "TEXT")
+    private String requestIds;
+
+    /** ID связанных закупок (purchases.id) из письма через запятую, если есть. */
+    @Column(name = "purchase_ids", columnDefinition = "TEXT")
     private String purchaseIds;
 
+    /** Количество заявок в письме (имя колонки историческое). */
     @Column(name = "purchase_count", nullable = false)
     private Integer purchaseCount;
 
@@ -74,6 +79,9 @@ public class ComplexityErrorNotification {
 
     public String getCcEmails() { return ccEmails; }
     public void setCcEmails(String ccEmails) { this.ccEmails = ccEmails; }
+
+    public String getRequestIds() { return requestIds; }
+    public void setRequestIds(String requestIds) { this.requestIds = requestIds; }
 
     public String getPurchaseIds() { return purchaseIds; }
     public void setPurchaseIds(String purchaseIds) { this.purchaseIds = purchaseIds; }

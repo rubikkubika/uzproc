@@ -145,6 +145,8 @@ app:
   # (Осканов Руслан, Рецко Артем). Отправка только ручная (см. ComplexityErrorService)
   complexity-error:
     cc: ${COMPLEXITY_ERROR_CC:r.oskanov@uzum.com,a.retsko@uzum.com}
+    # Адрес тестовой отправки (кнопка «Отправить тестовое письмо»): только сюда, без копии
+    test-recipient: ${COMPLEXITY_ERROR_TEST_RECIPIENT:a.retsko@uzum.com}
   # Автоотправка писем «Центр отправки → Спецификации» (оценка спецификаций за прошлый месяц):
   # первый рабочий день месяца в 10:00 по Ташкенту. Cron — будни 1–10 числа, проверка «первый рабочий
   # день» (с праздниками из holidays) и защита от повтора — в коде (см. SpecificationSendingScheduler)

@@ -1,6 +1,7 @@
 package com.uzproc.backend.service.sendingcenter;
 
-import com.uzproc.backend.dto.sendingcenter.ComplexityErrorPurchaseDto;
+import com.uzproc.backend.dto.sendingcenter.ComplexityErrorLinkedPurchaseDto;
+import com.uzproc.backend.dto.sendingcenter.ComplexityErrorRequestDto;
 import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
@@ -8,7 +9,7 @@ import java.util.List;
 
 /**
  * Письмо «Ошибка сложности» — в стиле остальных писем системы: приветствие, пояснение,
- * кнопка «Создать запрос в 1С» и компактная таблица закупок со ссылками на карточки.
+ * кнопка «Создать запрос в 1С» и компактная таблица заявок со ссылками на карточки.
  */
 @Component
 public class ComplexityErrorEmailBuilder {
@@ -17,27 +18,27 @@ public class ComplexityErrorEmailBuilder {
 
     /** Тема письма. */
     public String buildSubject(int year) {
-        return "[uzProc] Не указана сложность закупок " + year + " — нужен запрос в поддержку 1С";
+        return "[uzProc] Не указана сложность заявок " + year + " — нужен запрос в поддержку 1С";
     }
 
     /**
      * HTML-контент письма (без обёртки — обёртка добавляется через EmailService.wrapWithStandardTemplate).
      *
      * @param purchaserName    ФИО закупщика (для приветствия); пусто — общее приветствие
-     * @param year             год закупок
-     * @param purchases        закупки без сложности
+     * @param year             год заявок
+     * @param requests         заявки без сложности
      * @param supportRequestUrl ссылка на создание запроса в поддержку 1С
      */
     public String buildContent(String purchaserName, int year,
-                               List<ComplexityErrorPurchaseDto> purchases, String supportRequestUrl) {
+                               List<ComplexityErrorRequestDto> requests, String supportRequestUrl) {
         String greeting = purchaserName != null && !purchaserName.isBlank()
                 ? "Здравствуйте, " + escape(purchaserName.trim()) + "!"
                 : "Здравствуйте!";
         return """
             <p style="color: #333333; font-size: 16px; line-height: 1.6; margin-bottom: 15px;">%s</p>
-            <h2 style="color: #333333; font-size: 20px; margin-bottom: 15px;">Не указана сложность закупок</h2>
+            <h2 style="color: #333333; font-size: 20px; margin-bottom: 15px;">Не указана сложность заявок</h2>
             <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
-                По закупкам %d года из списка ниже (<strong>%d</strong>) в заявке не указана сложность.
+                У <strong>%d</strong> заявок %d года из списка ниже не указана сложность.
                 Без неё не рассчитываются плановые сроки закупки (SLA).
             </p>
             <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
@@ -48,35 +49,84 @@ public class ComplexityErrorEmailBuilder {
                 <a href="%s" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none;">Создать запрос в 1С</a>
             </div>
             %s
+            %s
             <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-top: 16px;">
                 С уважением,<br/>Ваша команда закупок
             </p>
             """.formatted(
                 greeting,
+                requests.size(),
                 year,
-                purchases.size(),
                 escape(supportRequestUrl),
-                buildTable(purchases)
+                buildRequestText(requests),
+                buildTable(requests)
         );
     }
 
-    /** Таблица закупок: номер закупки (ссылка на карточку), заявка, наименование, ЦФО, дата. */
-    private String buildTable(List<ComplexityErrorPurchaseDto> purchases) {
+    /**
+     * Пометка в начале тестового письма: кому ушло бы настоящее письмо.
+     *
+     * @param purchaserName  ФИО закупщика
+     * @param purchaserEmail адрес закупщика (может быть null)
+     */
+    public String buildTestNotice(String purchaserName, String purchaserEmail) {
+        return """
+            <div style="background-color: #fff7e6; border: 1px solid #f5c26b; border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; color: #7a4b00; font-size: 13px; line-height: 1.5;">
+                <strong>Тестовое письмо.</strong> Было бы отправлено: %s &lt;%s&gt;
+            </div>
+            """.formatted(escape(nvl(purchaserName, "—")), escape(nvl(purchaserEmail, "адрес не найден")));
+    }
+
+    /**
+     * Готовый текст для запроса в поддержку 1С — моноширинный блок на сером фоне, который удобно
+     * скопировать в форму. Место для сложности подсвечено жёлтым: его заполняет сам закупщик.
+     */
+    private String buildRequestText(List<ComplexityErrorRequestDto> requests) {
+        StringBuilder text = new StringBuilder();
+        if (requests.size() == 1) {
+            text.append("Добрый день! Прошу установить сложность в заявке на закупку № ")
+                .append(escape(requestNumber(requests.get(0))))
+                .append(" — сложность: ").append(PLACEHOLDER_HTML).append(".");
+        } else {
+            text.append("Добрый день! Прошу установить сложность в заявках на закупку:");
+            for (ComplexityErrorRequestDto request : requests) {
+                text.append("<br/>Заявка № ").append(escape(requestNumber(request)))
+                    .append(" — сложность: ").append(PLACEHOLDER_HTML);
+            }
+        }
+        return """
+            <p style="color: #333333; font-size: 14px; font-weight: 600; margin: 0 0 6px 0;">Текст для запроса в 1С — скопируйте в форму:</p>
+            <div style="background-color: #f5f5f5; border: 1px solid #e5e5e5; border-radius: 6px; padding: 12px; margin: 0 0 24px 0; font-family: Consolas, 'Courier New', monospace; font-size: 13px; line-height: 1.7; color: #333333;">%s</div>
+            """.formatted(text);
+    }
+
+    /** Подсвеченное место, куда закупщик вписывает сложность. */
+    private static final String PLACEHOLDER_HTML =
+            "<span style=\"background-color: #fff176; padding: 0 3px;\">[укажите сложность]</span>";
+
+    /** Номер заявки для текста запроса: inner_id, иначе — ID в системе. */
+    private String requestNumber(ComplexityErrorRequestDto request) {
+        return nvl(request.innerId(), String.valueOf(request.id()));
+    }
+
+    /** Таблица заявок: номер заявки (ссылка на карточку), наименование, ЦФО, статус, дата, закупка. */
+    private String buildTable(List<ComplexityErrorRequestDto> requests) {
         StringBuilder rows = new StringBuilder();
-        for (ComplexityErrorPurchaseDto purchase : purchases) {
+        for (ComplexityErrorRequestDto request : requests) {
             rows.append("<tr>")
-                .append(tdLink(nvl(purchase.innerId(), "Открыть"), purchase.link()))
-                .append(td(nvl(purchase.purchaseRequestInnerId(), "")))
-                .append(td(nvl(purchase.name(), "")))
-                .append(td(nvl(purchase.cfo(), "")))
-                .append(td(purchase.creationDate() != null ? purchase.creationDate().format(DATE_FORMAT) : ""))
+                .append(tdLink(nvl(request.innerId(), "Открыть"), request.link()))
+                .append(td(nvl(request.name(), "")))
+                .append(td(nvl(request.cfo(), "")))
+                .append(td(nvl(request.status(), "")))
+                .append(td(request.creationDate() != null ? request.creationDate().format(DATE_FORMAT) : ""))
+                .append(tdPurchases(request.purchases()))
                 .append("</tr>");
         }
         return """
             <table style="width: 100%%; border-collapse: collapse; font-size: 12px; color: #333333; margin-bottom: 18px;">
                 <thead>
                     <tr style="background-color: #f5f5f5;">
-                        %s%s%s%s%s
+                        %s%s%s%s%s%s
                     </tr>
                 </thead>
                 <tbody>
@@ -84,9 +134,24 @@ public class ComplexityErrorEmailBuilder {
                 </tbody>
             </table>
             """.formatted(
-                th("Закупка"), th("Заявка"), th("Наименование"), th("ЦФО"), th("Дата"),
+                th("Заявка"), th("Наименование"), th("ЦФО"), th("Статус"), th("Дата"), th("Закупка"),
                 rows.toString()
         );
+    }
+
+    /** Ячейка со связанными закупками (ссылками); пусто — закупки ещё нет. */
+    private String tdPurchases(List<ComplexityErrorLinkedPurchaseDto> purchases) {
+        if (purchases == null || purchases.isEmpty()) {
+            return td("—");
+        }
+        StringBuilder links = new StringBuilder();
+        for (ComplexityErrorLinkedPurchaseDto purchase : purchases) {
+            if (links.length() > 0) links.append("<br/>");
+            links.append("<a href=\"").append(escape(purchase.link()))
+                 .append("\" style=\"color: #2563eb; text-decoration: none;\">")
+                 .append(escape(nvl(purchase.innerId(), "Открыть"))).append("</a>");
+        }
+        return "<td style=\"padding: 8px; border: 1px solid #e5e5e5; white-space: nowrap;\">" + links + "</td>";
     }
 
     private String th(String text) {

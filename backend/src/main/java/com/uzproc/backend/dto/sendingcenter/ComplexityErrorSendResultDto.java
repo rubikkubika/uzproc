@@ -6,8 +6,8 @@ import java.util.List;
 public record ComplexityErrorSendResultDto(
         /** Сколько писем отправлено */
         int sentCount,
-        /** Сколько закупок вошло в отправленные письма */
-        int purchaseCount,
+        /** Сколько заявок вошло в отправленные письма */
+        int requestCount,
         /** Кому отправлено: «ФИО <email>» */
         List<String> sentTo,
         /** Пропущены — нет адреса закупщика (или закупщик не указан) */
