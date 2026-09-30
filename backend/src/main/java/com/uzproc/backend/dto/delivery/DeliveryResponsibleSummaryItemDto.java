@@ -23,6 +23,13 @@ public class DeliveryResponsibleSummaryItemDto {
     private long overdueCount;
     /** Поставлено за год: статус «Поставлено» и фактическая дата поставки в этом году */
     private long deliveredCount;
+    /**
+     * Поставлено за год с известным сроком поставки (дедлайн, а без него — плановая дата).
+     * Знаменатель «% в срок» на дэшборде «Обзор → Дэшборды по поставкам → По ответственным».
+     */
+    private long measurableCount;
+    /** Из них в срок: фактическая дата поставки не позже срока поставки */
+    private long onTimeCount;
 
     public DeliveryResponsibleSummaryItemDto() {}
 
@@ -51,4 +58,10 @@ public class DeliveryResponsibleSummaryItemDto {
 
     public long getDeliveredCount() { return deliveredCount; }
     public void setDeliveredCount(long deliveredCount) { this.deliveredCount = deliveredCount; }
+
+    public long getMeasurableCount() { return measurableCount; }
+    public void setMeasurableCount(long measurableCount) { this.measurableCount = measurableCount; }
+
+    public long getOnTimeCount() { return onTimeCount; }
+    public void setOnTimeCount(long onTimeCount) { this.onTimeCount = onTimeCount; }
 }

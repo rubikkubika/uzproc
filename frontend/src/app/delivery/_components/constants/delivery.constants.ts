@@ -52,3 +52,16 @@ export const SKELETON_ROWS = 8;
 
 /** Параметр адреса, открывающий карточку конкретной поставки (ссылки из писем) */
 export const DELIVERY_ID_URL_PARAM = 'deliveryId';
+
+/** Параметры адреса со срезом недельного отчёта (ссылки «Открыть список» из письма) */
+export const REPORT_SLICE_URL_PARAMS = {
+  kind: 'reportSlice',
+  from: 'reportFrom',
+  to: 'reportTo',
+} as const;
+
+/** Подписи чипа среза недельного отчёта */
+export const REPORT_SLICE_LABELS: Record<'overdue' | 'no-esf', string> = {
+  overdue: 'Отчёт: просрочено',
+  'no-esf': 'Отчёт: нет ЭСФ',
+};

@@ -8,7 +8,7 @@ import SendingStatusMessage from './SendingStatusMessage';
 
 /**
  * Подраздел «Недельный отчёт» вкладки «Поставки»: письмо с итогами поставок
- * за неделю (с прошлой пятницы по четверг) и за текущий месяц.
+ * за неделю (с прошлой пятницы по четверг), за текущий месяц и с начала года.
  */
 export default function DeliveryWeeklyReport() {
   const { preview, recipient, pickRecipient, loading, sending, error, sendMessage, send } =
@@ -24,15 +24,17 @@ export default function DeliveryWeeklyReport() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Недельный отчёт по поставкам</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Письмо с итогами за неделю (с прошлой пятницы по четверг) и за текущий месяц:
+            Письмо с итогами за неделю (с прошлой пятницы по четверг), за текущий месяц и с начала года:
             что поставлено, что просрочено без фактической даты и по каким поставкам не заполнена дата ЭСФ.
+            Блок «С начала года» идёт без таблиц — только цифры и ссылки «Открыть список».
           </p>
         </div>
 
         {preview && (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
             <DeliveryWeeklyReportPeriodCard title="За неделю" period={preview.week} />
             <DeliveryWeeklyReportPeriodCard title="За текущий месяц" period={preview.month} />
+            <DeliveryWeeklyReportPeriodCard title="С начала года" period={preview.year} />
           </div>
         )}
 

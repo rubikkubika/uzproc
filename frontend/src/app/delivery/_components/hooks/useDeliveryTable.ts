@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageResponse, SortField, SortDirection, Delivery } from '../types/delivery.types';
-import type { DeliveryQuery, DeliveryTab, HorizonKey } from '../types/delivery-query.types';
+import type { DeliveryQuery, DeliveryTab, HorizonKey, ReportSliceFilter } from '../types/delivery-query.types';
 import { PAGE_SIZE } from '../constants/delivery.constants';
 import { useDeliveryFilters } from './useDeliveryFilters';
 import { useDeliveryData } from './useDeliveryData';
@@ -9,10 +9,14 @@ import { useDeliveryTabCounts } from './useDeliveryTabCounts';
 import { useDeliveryRowMutations } from './useDeliveryRowMutations';
 import { useDeliveryPositionRestore } from './useDeliveryPositionRestore';
 import { readDeliveryViewState, writeDeliveryViewState } from '../utils/delivery-view-state.utils';
+import { clearReportSliceUrl, readReportSliceFromUrl } from '../utils/delivery-report-slice.utils';
 
 export const useDeliveryTable = () => {
+  // Срез из письма недельного отчёта открывает таблицу «с чистого листа»: все вкладки и годы, только этот срез
+  const [urlSlice] = useState(readReportSliceFromUrl);
   // Сохранённое состояние — при возврате со страницы договора или заявки таблица открывается как была
-  const [saved] = useState(readDeliveryViewState);
+  const [saved] = useState(() => (urlSlice ? null : readDeliveryViewState()));
+  const [reportSlice, setReportSlice] = useState<ReportSliceFilter | null>(urlSlice ?? saved?.query.reportSlice ?? null);
   const [data, setData] = useState<PageResponse | null>(null);
   const [allItems, setAllItems] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,14 +34,16 @@ export const useDeliveryTable = () => {
 
   const currentYear = new Date().getFullYear();
   // По умолчанию список ограничен текущим годом; «Все» и «Без даты» переключаются кнопками
-  const [selectedYear, setSelectedYear] = useState<number | null>(saved ? saved.query.year : currentYear);
+  const [selectedYear, setSelectedYear] = useState<number | null>(urlSlice ? null : saved ? saved.query.year : currentYear);
   const [showNoDate, setShowNoDate] = useState(saved?.query.noDate ?? false);
   // День, выбранный на ленте «По дням» (ISO), и группа горизонта — взаимоисключающие
   const [plannedDate, setPlannedDate] = useState<string | null>(saved?.query.plannedDate ?? null);
   const [horizon, setHorizon] = useState<HorizonKey | null>(saved?.query.horizon ?? null);
   // Вкладки (взаимоисключающие): «В работе» (по умолчанию) / «Закрыто» (Поставлено + Оплачено)
   // / «Закрыто-разобрать» (в отчёте «Закрыто», но по правилам не закрыта)
-  const [activeTab, setActiveTab] = useState<DeliveryTab>(saved?.query.tab ?? 'in-work');
+  const [activeTab, setActiveTab] = useState<DeliveryTab>(urlSlice ? 'all' : saved?.query.tab ?? 'in-work');
+
+  useEffect(clearReportSliceUrl, []);
 
   const availableYears = useMemo(() => {
     const years: number[] = [];
@@ -60,8 +66,9 @@ export const useDeliveryTable = () => {
     overdue: filtersHook.overdueFilter,
     deliveredYear: filtersHook.deliveredYearFilter,
     horizon,
+    reportSlice,
   }), [filtersHook.filters, selectedYear, showNoDate, filtersHook.paymentSchemeFilter, filtersHook.shipmentStatusFilter,
-    activeTab, plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter, horizon]);
+    activeTab, plannedDate, filtersHook.overdueFilter, filtersHook.deliveredYearFilter, horizon, reportSlice]);
   const queryStr = JSON.stringify(query);
 
   const tabCounts = useDeliveryTabCounts(query, reloadKey, fetchPage);
@@ -127,6 +134,7 @@ export const useDeliveryTable = () => {
   }, [horizon]);
 
   const clearHorizon = useCallback(() => setHorizon(null), []);
+  const clearReportSlice = useCallback(() => setReportSlice(null), []);
 
   const handleResetFilters = useCallback(() => {
     filtersHook.resetAll();
@@ -137,6 +145,7 @@ export const useDeliveryTable = () => {
     setShowNoDate(false);
     setPlannedDate(null);
     setHorizon(null);
+    setReportSlice(null);
     setCurrentPage(0);
   }, [filtersHook, currentYear]);
 
@@ -216,6 +225,8 @@ export const useDeliveryTable = () => {
     horizon,
     toggleHorizon,
     clearHorizon,
+    reportSlice,
+    clearReportSlice,
     ...mutations,
   };
 };

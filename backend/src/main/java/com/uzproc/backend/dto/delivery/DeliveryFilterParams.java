@@ -45,6 +45,14 @@ public class DeliveryFilterParams {
     /** Диапазон плановой даты (ISO), границы включительно */
     private String plannedFrom;
     private String plannedTo;
+    /**
+     * Срез недельного отчёта по поставкам (ссылка «Открыть список» из письма):
+     * overdue — плановая дата в периоде, фактической даты нет; no-esf — фактическая дата в периоде, даты ЭСФ нет.
+     */
+    private String reportSlice;
+    /** Период среза отчёта (ISO), границы включительно */
+    private String reportFrom;
+    private String reportTo;
 
     /**
      * Копия без выбора дня и группы горизонта — по ней считаются диаграмма «По дням» и горизонт:
@@ -75,6 +83,9 @@ public class DeliveryFilterParams {
         copy.discrepancy = discrepancy;
         copy.plannedFrom = plannedFrom;
         copy.plannedTo = plannedTo;
+        copy.reportSlice = reportSlice;
+        copy.reportFrom = reportFrom;
+        copy.reportTo = reportTo;
         return copy;
     }
 
@@ -151,4 +162,10 @@ public class DeliveryFilterParams {
 
     public String getPlannedTo() { return plannedTo; }
     public void setPlannedTo(String plannedTo) { this.plannedTo = plannedTo; }
+    public String getReportSlice() { return reportSlice; }
+    public void setReportSlice(String reportSlice) { this.reportSlice = reportSlice; }
+    public String getReportFrom() { return reportFrom; }
+    public void setReportFrom(String reportFrom) { this.reportFrom = reportFrom; }
+    public String getReportTo() { return reportTo; }
+    public void setReportTo(String reportTo) { this.reportTo = reportTo; }
 }

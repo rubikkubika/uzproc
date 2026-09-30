@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,24 @@ public class WorkingDayService {
             return false;
         }
         return !holidaysForYear(date.getYear()).contains(date);
+    }
+
+    /**
+     * Первый рабочий день месяца (пн–пт, не праздник из таблицы {@code holidays}).
+     * Если в месяце нет рабочих дней (теоретически), возвращает {@code null}.
+     */
+    public LocalDate firstWorkingDayOfMonth(YearMonth month) {
+        for (LocalDate d = month.atDay(1); !d.isAfter(month.atEndOfMonth()); d = d.plusDays(1)) {
+            if (isWorkingDay(d)) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    /** Является ли дата первым рабочим днём своего месяца. */
+    public boolean isFirstWorkingDayOfMonth(LocalDate date) {
+        return date != null && date.equals(firstWorkingDayOfMonth(YearMonth.from(date)));
     }
 
     /**

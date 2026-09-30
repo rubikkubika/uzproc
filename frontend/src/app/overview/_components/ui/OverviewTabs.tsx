@@ -28,6 +28,10 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   'contract-states-in-work': 'Состояния договоров (в работе)',
   kpi: 'KPI премии',
   kpi2: 'KPI премии 2',
+  'delivery-pulse': 'Пульс поставок',
+  'delivery-responsible': 'По ответственным',
+  'delivery-discipline': 'Дисциплина сроков',
+  'delivery-finance': 'Деньги и документы',
 };
 
 interface OverviewTabsProps {
@@ -51,6 +55,7 @@ const topTabs: OverviewTopTabItem[] = [
 const dashboardCategories: OverviewDashboardCategoryItem[] = [
   { id: 'purchases', label: 'Дэшборды по закупкам' },
   { id: 'contracts', label: 'Дэшборды по договорам' },
+  { id: 'deliveries', label: 'Дэшборды по поставкам' },
   { id: 'other', label: 'Прочие' },
 ];
 

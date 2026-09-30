@@ -33,6 +33,10 @@ import { PurchasesByCfoTabContent } from './ui/PurchasesByCfoTabContent';
 import { PurchaserDistributionTabContent } from './ui/PurchaserDistributionTabContent';
 import { ContractStatesInWorkTabContent } from './ui/ContractStatesInWorkTabContent';
 import { KpiDashboard } from './kpi/KpiDashboard';
+import { DeliveryPulseDashboardContent } from './delivery-dashboards/DeliveryPulseDashboardContent';
+import { DeliveryResponsibleDashboardContent } from './delivery-dashboards/DeliveryResponsibleDashboardContent';
+import { DeliveryDisciplineDashboardContent } from './delivery-dashboards/DeliveryDisciplineDashboardContent';
+import { DeliveryFinanceDashboardContent } from './delivery-dashboards/DeliveryFinanceDashboardContent';
 import { KpiDashboard2 } from './kpi2/KpiDashboard2';
 import { ADMIN_LOGIN_ONLY_TABS } from './types/overview.types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -525,6 +529,26 @@ export default function Overview() {
         {activeTopTab === 'dashboards' && activeTab === 'contract-approvals' && (
           <div className="w-full">
             <ContractApprovalsDashboardContent enabled={activeTab === 'contract-approvals'} />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'delivery-pulse' && (
+          <div className="w-full">
+            <DeliveryPulseDashboardContent enabled={activeTab === 'delivery-pulse'} />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'delivery-responsible' && (
+          <div className="w-full">
+            <DeliveryResponsibleDashboardContent enabled={activeTab === 'delivery-responsible'} />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'delivery-discipline' && (
+          <div className="w-full">
+            <DeliveryDisciplineDashboardContent enabled={activeTab === 'delivery-discipline'} />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'delivery-finance' && (
+          <div className="w-full">
+            <DeliveryFinanceDashboardContent enabled={activeTab === 'delivery-finance'} />
           </div>
         )}
         {activeTopTab === 'dashboards' && activeTab === 'purchases-by-cfo' && (

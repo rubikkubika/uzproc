@@ -163,9 +163,32 @@ export interface PurchasePlanItemComment {
 /** Строка свода по закупщикам */
 export interface PurchaserSummaryItem {
   purchaser: string;
+  /** Итоги с учётом всех фильтров таблицы (без позиций «Исключена») */
   count: number;
   totalBudget: number;
   totalComplexity: number;
+  /** Разбивка по статусам (без учёта фильтра «Статус»): «В плане» без заявки */
+  inPlanCount: number;
+  inPlanBudget: number;
+  /** «Связано с заявкой»: есть связанная заявка, позиция не исключена */
+  linkedToRequestCount: number;
+  linkedToRequestBudget: number;
+  /** «Исключено»: статус «Исключена» */
+  excludedCount: number;
+  excludedBudget: number;
+}
+
+/** Числовые поля строки свода по закупщикам (для суммирования в «Итого») */
+export type PurchaserSummaryNumericField = Exclude<keyof PurchaserSummaryItem, 'purchaser'>;
+
+/** Группа разбивки свода по закупщикам по статусу позиции */
+export interface PurchaserSummaryStatusGroup {
+  key: string;
+  label: string;
+  /** Подсказка при наведении на заголовок группы */
+  title: string;
+  countField: PurchaserSummaryNumericField;
+  budgetField: PurchaserSummaryNumericField;
 }
 
 /** Строка свода по ЦФО */

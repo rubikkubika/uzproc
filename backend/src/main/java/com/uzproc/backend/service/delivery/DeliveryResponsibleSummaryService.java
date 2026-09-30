@@ -66,7 +66,15 @@ public class DeliveryResponsibleSummaryService {
             "                          AND d.planned_delivery_date IS NOT NULL " +
             "                          AND d.planned_delivery_date < CURRENT_DATE) AS overdue_count, " +
             "       COUNT(*) FILTER (WHERE d.shipment_status = 'DELIVERED' " +
-            "                          AND d.actual_delivery_date BETWEEN :yearStart AND :yearEnd) AS delivered_count " +
+            "                          AND d.actual_delivery_date BETWEEN :yearStart AND :yearEnd) AS delivered_count, " +
+            // Поставлено за год с известным сроком (дедлайн, а без него — плановая дата) — знаменатель «% в срок»
+            "       COUNT(*) FILTER (WHERE d.shipment_status = 'DELIVERED' " +
+            "                          AND d.actual_delivery_date BETWEEN :yearStart AND :yearEnd " +
+            "                          AND COALESCE(d.delivery_deadline, d.planned_delivery_date) IS NOT NULL) AS measurable_count, " +
+            // Из них в срок: фактическая дата не позже срока поставки
+            "       COUNT(*) FILTER (WHERE d.shipment_status = 'DELIVERED' " +
+            "                          AND d.actual_delivery_date BETWEEN :yearStart AND :yearEnd " +
+            "                          AND d.actual_delivery_date <= COALESCE(d.delivery_deadline, d.planned_delivery_date)) AS on_time_count " +
             "FROM deliveries d " +
             "LEFT JOIN users u ON d.responsible_id = u.id " +
             "GROUP BY 1, 2, 3";
@@ -96,6 +104,8 @@ public class DeliveryResponsibleSummaryService {
             item.setTotalCount(item.getTotalCount() + total);
             item.setOverdueCount(item.getOverdueCount() + asLong(row[4]));
             item.setDeliveredCount(item.getDeliveredCount() + asLong(row[5]));
+            item.setMeasurableCount(item.getMeasurableCount() + asLong(row[6]));
+            item.setOnTimeCount(item.getOnTimeCount() + asLong(row[7]));
 
             if (shipmentStatus != null) {
                 item.getCountByShipmentStatus().merge(shipmentStatus.getDisplayName(), total, Long::sum);

@@ -1,6 +1,7 @@
 package com.uzproc.backend.service.sendingcenter;
 
 import com.uzproc.backend.entity.delivery.Delivery;
+import com.uzproc.backend.service.delivery.DeliverySpecifications;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -12,6 +13,7 @@ import java.util.List;
 /**
  * Формирует письмо недельного отчёта по поставкам — в стиле остальных писем системы:
  * приветствие, блок со сводкой за период и таблицы проблемных поставок со ссылками на карточки.
+ * Блок «С начала года» — без таблиц: только цифры и ссылки, открывающие списки в разделе «Поставки».
  */
 @Component
 public class DeliveryWeeklyReportEmailBuilder {
@@ -32,10 +34,12 @@ public class DeliveryWeeklyReportEmailBuilder {
      *
      * @param week    блок за отчётную неделю
      * @param month   блок за текущий месяц
+     * @param year    блок с начала года (сводка без таблиц)
      * @param baseUrl база ссылок на карточки поставок
      */
     public String buildContent(DeliveryWeeklyReportSection week,
                                DeliveryWeeklyReportSection month,
+                               DeliveryWeeklyReportSection year,
                                String baseUrl) {
         return """
             <p style="color: #333333; font-size: 16px; line-height: 1.6; margin-bottom: 15px;">
@@ -44,12 +48,14 @@ public class DeliveryWeeklyReportEmailBuilder {
             <h2 style="color: #333333; font-size: 20px; margin-bottom: 15px;">Отчёт по поставкам</h2>
             %s
             %s
+            %s
             <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-top: 16px;">
                 С уважением,<br/>Ваша команда закупок
             </p>
             """.formatted(
                 buildSection(week, baseUrl),
-                buildSection(month, baseUrl)
+                buildSection(month, baseUrl),
+                buildSummarySection(year, baseUrl)
         );
     }
 
@@ -74,6 +80,62 @@ public class DeliveryWeeklyReportEmailBuilder {
                 buildOverdueTable(section, baseUrl),
                 buildMissingEsfTable(section, baseUrl)
         );
+    }
+
+    /**
+     * Блок-сводка без таблиц: сколько поставлено и на какую сумму, затем просрочка и поставки без ЭСФ —
+     * каждая строкой с количеством, суммой и ссылкой «Открыть список» на отфильтрованный раздел «Поставки».
+     */
+    private String buildSummarySection(DeliveryWeeklyReportSection section, String baseUrl) {
+        return """
+            <div style="margin-bottom: 28px;">
+                <h3 style="color: #333333; font-size: 17px; margin: 0 0 10px 0;">%s</h3>
+                <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+                    За период с <strong>%s</strong> по <strong>%s</strong> поставлено
+                    <strong>%d</strong> поставок на общую сумму <strong>%s</strong>.
+                </p>
+                %s
+                %s
+            </div>
+            """.formatted(
+                escape(section.title()),
+                section.from().format(DATE_FORMAT),
+                section.to().format(DATE_FORMAT),
+                section.delivered().size(),
+                formatAmount(section.deliveredAmount()),
+                buildSummaryLine("Просрочено — не заполнена фактическая дата поставки",
+                        section.overdue(), section.overdueAmount(),
+                        "Просроченных поставок за период нет",
+                        sliceLink(baseUrl, DeliverySpecifications.REPORT_SLICE_OVERDUE, section)),
+                buildSummaryLine("Нет ЭСФ — не заполнена дата ЭСФ",
+                        section.missingEsf(), section.missingEsfAmount(),
+                        "Поставок без даты ЭСФ за период нет",
+                        sliceLink(baseUrl, DeliverySpecifications.REPORT_SLICE_NO_ESF, section))
+        );
+    }
+
+    /** Строка сводки: заголовок, количество и сумма + ссылка на список (если список не пуст). */
+    private String buildSummaryLine(String title, List<Delivery> deliveries, BigDecimal totalAmount,
+                                    String emptyText, String url) {
+        if (deliveries.isEmpty()) {
+            return """
+                <p style="color: #333333; font-size: 14px; font-weight: 600; margin: 0 0 6px 0;">%s</p>
+                <p style="color: #999999; font-size: 13px; line-height: 1.6; margin: 0 0 14px 0;">%s</p>
+                """.formatted(escape(title), escape(emptyText));
+        }
+        return """
+            <p style="color: #333333; font-size: 14px; line-height: 1.6; margin: 0 0 14px 0;">
+                <strong>%s</strong> — %d на сумму %s<br/>
+                <a href="%s" style="color: #2563eb; text-decoration: none;">Открыть список →</a>
+            </p>
+            """.formatted(escape(title), deliveries.size(), formatAmount(totalAmount), escape(url));
+    }
+
+    /** Ссылка на раздел «Поставки», отфильтрованный по срезу отчёта за период блока. */
+    private String sliceLink(String baseUrl, String slice, DeliveryWeeklyReportSection section) {
+        String base = baseUrl != null ? baseUrl.replaceAll("/+$", "") : "";
+        return base + "/?tab=delivery&reportSlice=" + slice
+                + "&reportFrom=" + section.from() + "&reportTo=" + section.to();
     }
 
     /** Таблица просроченных поставок: было запланировано, но фактическая дата не заполнена. */

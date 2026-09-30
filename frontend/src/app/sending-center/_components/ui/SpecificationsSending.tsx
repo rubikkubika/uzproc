@@ -3,6 +3,7 @@
 import { useSpecificationSending } from '../hooks/useSpecificationSending';
 import MonthSwitcher from './MonthSwitcher';
 import SpecificationSendingTable from './SpecificationSendingTable';
+import { SPECIFICATION_AUTO_SEND_NOTE } from '../constants/sending-center.constants';
 
 export default function SpecificationsSending() {
   const {
@@ -23,8 +24,9 @@ export default function SpecificationsSending() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthSwitcher year={year} month={month} onPrev={prevMonth} onNext={nextMonth} />
-        <div className="text-sm text-gray-500">
-          Подписанные спецификации по дате синхронизации
+        <div className="text-right">
+          <div className="text-sm text-gray-500">Подписанные спецификации по дате синхронизации</div>
+          <div className="text-xs text-gray-400">{SPECIFICATION_AUTO_SEND_NOTE}</div>
         </div>
       </div>
 

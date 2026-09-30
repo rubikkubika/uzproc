@@ -11,7 +11,7 @@ import { SendingRecipient } from '../types/delivery-sending.types';
 
 /**
  * Подраздел «Недельный отчёт» вкладки «Поставки»: предпросмотр отчёта
- * (неделя с прошлой пятницы по четверг и текущий месяц), получатель и отправка письма.
+ * (неделя с прошлой пятницы по четверг, текущий месяц и с начала года), получатель и отправка письма.
  */
 export function useDeliveryWeeklyReport() {
   const [preview, setPreview] = useState<DeliveryWeeklyReportPreview | null>(null);

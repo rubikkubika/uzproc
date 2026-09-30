@@ -30,3 +30,7 @@ logging:
 app:
   delivery-weekly-report:
     enabled: ${DELIVERY_WEEKLY_REPORT_ENABLED:false}
+  # Локально автоотправка писем по спецификациям (первый рабочий день месяца, 10:00) выключена.
+  # Для проверки локально: SPECIFICATION_SENDING_ENABLED=true
+  specification-sending:
+    enabled: ${SPECIFICATION_SENDING_ENABLED:false}

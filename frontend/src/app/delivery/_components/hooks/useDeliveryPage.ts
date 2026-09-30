@@ -31,6 +31,8 @@ export function useDeliveryPage() {
     clearDay: useCallback(() => selectPlannedDate(null), [selectPlannedDate]),
     horizon: table.horizon,
     clearHorizon,
+    reportSlice: table.reportSlice,
+    clearReportSlice: table.clearReportSlice,
   });
 
   const comments = useDeliveryComments(table.setCommentsCount);

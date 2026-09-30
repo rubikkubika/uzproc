@@ -39,9 +39,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -2069,9 +2072,13 @@ public class PurchasePlanItemService {
     }
 
     /**
-     * Получает сводную статистику по закупщикам для плана закупок
+     * Получает сводную статистику по закупщикам для плана закупок.
      * Агрегирует данные: количество позиций, сумма бюджета, сумма сложности по каждому закупщику
-     * ВАЖНО: Фильтр по закупщику (purchaser) НЕ применяется, т.к. сводная таблица показывает статистику по ВСЕМ закупщикам
+     * (с учётом всех фильтров таблицы, без позиций «Исключена»), а также разбивку по статусам:
+     * «В плане», «Связано с заявкой», «Исключено» (количество и сумма бюджета).
+     * ВАЖНО: Фильтр по закупщику (purchaser) НЕ применяется, т.к. сводная таблица показывает статистику по ВСЕМ закупщикам.
+     * ВАЖНО: Разбивка по статусам считается БЕЗ фильтра «Статус» (по умолчанию он скрывает «Исключена»,
+     * и колонка «Исключено» всегда была бы пустой); остальные фильтры применяются.
      */
     public List<com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto> getPurchaserSummary(
             Integer year,
@@ -2090,175 +2097,161 @@ public class PurchasePlanItemService {
             String currentContractName,
             com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             boolean isDraft) {
-        
-        // Строим Specification БЕЗ фильтра по purchaser (сводная таблица показывает статистику по всем закупщикам)
-        Specification<PurchasePlanItem> spec = buildSpecification(
-            year, company, purchaserCompany, cfo, purchaseSubject, 
+
+        // Основная выборка (итоги): все фильтры таблицы, кроме закупщика, и без позиций «Исключена»
+        Specification<PurchasePlanItem> totalsSpec = buildSpecification(
+            year, company, purchaserCompany, cfo, purchaseSubject,
             null, // purchaser = null, чтобы не применять фильтр по закупщику
-            category, requestMonths, requestYear, currentContractEndDate, 
+            category, requestMonths, requestYear, currentContractEndDate,
             status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, isDraft
         );
-        
-        // Добавляем фильтр для исключения позиций со статусом "Исключена"
-        spec = spec.and((root, query, cb) -> 
+        totalsSpec = totalsSpec.and((root, query, cb) ->
             cb.notEqual(root.get("status"), PurchasePlanItemStatus.NOT_ACTUAL)
         );
-        
-        // Загружаем все отфильтрованные элементы
-        List<PurchasePlanItem> items = purchasePlanItemRepository.findAll(spec);
-        
-        // Если нет элементов, возвращаем пустой список
-        if (items.isEmpty()) {
+
+        // Выборка для разбивки по статусам: те же фильтры, но без фильтра по статусу и без исключения «Исключена»
+        Specification<PurchasePlanItem> breakdownSpec = buildSpecification(
+            year, company, purchaserCompany, cfo, purchaseSubject,
+            null,
+            category, requestMonths, requestYear, currentContractEndDate,
+            null, // status = null — разбивка показывает все три статуса независимо от фильтра
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, isDraft
+        );
+
+        List<PurchasePlanItem> totalsItems = purchasePlanItemRepository.findAll(totalsSpec);
+        List<PurchasePlanItem> breakdownItems = purchasePlanItemRepository.findAll(breakdownSpec);
+
+        // Объединяем выборки по id (итоговая выборка — подмножество выборки разбивки, но страхуемся)
+        Set<Long> totalsIds = totalsItems.stream().map(PurchasePlanItem::getId).collect(Collectors.toSet());
+        Map<Long, PurchasePlanItem> allItemsById = new LinkedHashMap<>();
+        breakdownItems.forEach(item -> allItemsById.put(item.getId(), item));
+        totalsItems.forEach(item -> allItemsById.putIfAbsent(item.getId(), item));
+
+        if (allItemsById.isEmpty()) {
             logger.debug("No purchase plan items found for summary, returning empty list");
             return new ArrayList<>();
         }
-        
-        logger.debug("Found {} purchase plan items for summary", items.size());
-        
-        // Загружаем пользователей (закупщиков) для всех элементов через нативный запрос
-        // (так как purchaser - это LAZY связь, нужно загрузить отдельно)
-        List<Long> itemIds = items.stream()
-            .map(PurchasePlanItem::getId)
-            .collect(Collectors.toList());
-        
-        List<Long> purchaserIds = new ArrayList<>();
-        if (!itemIds.isEmpty()) {
-            try {
-                @SuppressWarnings("unchecked")
-                List<Object[]> results = entityManager.createNativeQuery(
-                    "SELECT DISTINCT purchaser_id FROM purchase_plan_items WHERE id IN :ids AND purchaser_id IS NOT NULL"
-                )
-                .setParameter("ids", itemIds)
-                .getResultList();
-                
-                for (Object[] result : results) {
-                    if (result[0] != null) {
-                        Long purchaserId = ((Number) result[0]).longValue();
-                        purchaserIds.add(purchaserId);
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("Error loading purchaser IDs: {}", e.getMessage(), e);
-            }
-        }
-        
-        Map<Long, User> purchaserMap = new HashMap<>();
-        if (!purchaserIds.isEmpty()) {
-            List<User> purchasers = userRepository.findAllById(purchaserIds);
-            for (User user : purchasers) {
-                purchaserMap.put(user.getId(), user);
-            }
-            logger.debug("Loaded {} purchasers out of {} requested IDs", purchasers.size(), purchaserIds.size());
-        }
-        
-        // Создаем Map для связи itemId -> purchaserId
-        Map<Long, Long> itemPurchaserMap = new HashMap<>();
-        if (!itemIds.isEmpty()) {
-            try {
-                @SuppressWarnings("unchecked")
-                List<Object[]> results = entityManager.createNativeQuery(
-                    "SELECT id, purchaser_id FROM purchase_plan_items WHERE id IN :ids AND purchaser_id IS NOT NULL"
-                )
-                .setParameter("ids", itemIds)
-                .getResultList();
-                
-                for (Object[] result : results) {
-                    if (result[0] != null && result[1] != null) {
-                        Long itemId = ((Number) result[0]).longValue();
-                        Long purchaserId = ((Number) result[1]).longValue();
-                        itemPurchaserMap.put(itemId, purchaserId);
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("Error loading item-purchaser mapping: {}", e.getMessage(), e);
-            }
-        }
-        
+
+        logger.debug("Found {} purchase plan items for summary totals, {} for status breakdown",
+            totalsItems.size(), breakdownItems.size());
+
+        Map<Long, String> purchaserNames = resolvePurchaserNamesForSummary(new ArrayList<>(allItemsById.keySet()));
+
         // Группируем и агрегируем данные по закупщикам
         Map<String, com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto> summaryMap = new HashMap<>();
-        
-        final Map<Long, Long> finalItemPurchaserMap = itemPurchaserMap;
-        final Map<Long, User> finalPurchaserMap = purchaserMap;
-        
-        int itemsWithPurchaser = 0;
-        int itemsWithoutPurchaser = 0;
-        for (PurchasePlanItem item : items) {
-            // Получаем имя закупщика
-            String purchaserName = "Не назначен";
-            Long purchaserId = finalItemPurchaserMap.get(item.getId());
-            if (purchaserId != null) {
-                User purchaser = finalPurchaserMap.get(purchaserId);
-                if (purchaser != null) {
-                    if (purchaser.getSurname() != null && purchaser.getName() != null) {
-                        purchaserName = purchaser.getSurname() + " " + purchaser.getName();
-                    } else if (purchaser.getUsername() != null) {
-                        purchaserName = purchaser.getUsername();
-                    }
-                    itemsWithPurchaser++;
-                } else {
-                    // Пользователь не найден в purchaserMap - возможно, был удален или ID неверный
-                    // Пытаемся загрузить напрямую из репозитория
-                    try {
-                        Optional<User> purchaserOpt = userRepository.findById(purchaserId);
-                        if (purchaserOpt.isPresent()) {
-                            User loadedPurchaser = purchaserOpt.get();
-                            if (loadedPurchaser.getSurname() != null && loadedPurchaser.getName() != null) {
-                                purchaserName = loadedPurchaser.getSurname() + " " + loadedPurchaser.getName();
-                            } else if (loadedPurchaser.getUsername() != null) {
-                                purchaserName = loadedPurchaser.getUsername();
-                            }
-                            // Добавляем в map для следующих итераций
-                            finalPurchaserMap.put(purchaserId, loadedPurchaser);
-                            itemsWithPurchaser++;
-                        } else {
-                            logger.debug("Purchaser with ID {} not found in database for item {}", purchaserId, item.getId());
-                            itemsWithoutPurchaser++;
-                        }
-                    } catch (Exception e) {
-                        logger.debug("Could not load purchaser with ID {}: {}", purchaserId, e.getMessage());
-                        itemsWithoutPurchaser++;
-                    }
-                }
-            } else {
-                itemsWithoutPurchaser++;
-            }
-            
-            // Нормализуем имя закупщика (убираем лишние пробелы)
+        for (PurchasePlanItem item : allItemsById.values()) {
+            String purchaserName = purchaserNames.getOrDefault(item.getId(), "Не назначен");
             final String normalizedPurchaserName = purchaserName.trim().replaceAll("\\s+", " ");
-            
-            // Получаем или создаем запись для закупщика
+
             com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto summary = summaryMap.computeIfAbsent(
                 normalizedPurchaserName,
                 k -> new com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto(
                     normalizedPurchaserName, 0L, BigDecimal.ZERO, BigDecimal.ZERO
                 )
             );
-            
-            // Обновляем статистику
-            summary.setCount(summary.getCount() + 1);
-            if (item.getBudgetAmount() != null) {
-                summary.setTotalBudget(summary.getTotalBudget().add(item.getBudgetAmount()));
-            }
-            
-            // Парсим сложность
-            if (item.getComplexity() != null && !item.getComplexity().trim().isEmpty()) {
-                try {
-                    String complexityStr = item.getComplexity().replace(",", ".").replaceAll("\\s", "");
-                    BigDecimal complexity = new BigDecimal(complexityStr);
+
+            BigDecimal budget = item.getBudgetAmount() != null ? item.getBudgetAmount() : BigDecimal.ZERO;
+
+            // Итоги — только по основной выборке
+            if (totalsIds.contains(item.getId())) {
+                summary.setCount(summary.getCount() + 1);
+                summary.setTotalBudget(summary.getTotalBudget().add(budget));
+                BigDecimal complexity = parseComplexityForSummary(item.getComplexity());
+                if (complexity != null) {
                     summary.setTotalComplexity(summary.getTotalComplexity().add(complexity));
-                } catch (NumberFormatException e) {
-                    // Игнорируем некорректные значения сложности
                 }
             }
+
+            // Разбивка по статусам
+            addToStatusBreakdown(summary, item, budget);
         }
-        
-        logger.debug("Summary statistics: {} items with purchaser, {} items without purchaser, {} unique purchasers", 
-            itemsWithPurchaser, itemsWithoutPurchaser, summaryMap.size());
-        
+
+        logger.debug("Purchaser summary: {} unique purchasers", summaryMap.size());
+
         // Сортируем по сумме бюджета по убыванию
         return summaryMap.values().stream()
             .sorted((a, b) -> b.getTotalBudget().compareTo(a.getTotalBudget()))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Относит позицию к одной из групп разбивки свода по закупщикам:
+     * «Исключено» — статус «Исключена»; «Связано с заявкой» — есть связанная заявка;
+     * «В плане» — статус «В плане» без заявки. Остальные позиции (напр. «Проект», пустой статус)
+     * в разбивку не попадают и учитываются только в итогах.
+     */
+    private void addToStatusBreakdown(com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto summary,
+                                      PurchasePlanItem item, BigDecimal budget) {
+        if (item.getStatus() == PurchasePlanItemStatus.NOT_ACTUAL) {
+            summary.setExcludedCount(summary.getExcludedCount() + 1);
+            summary.setExcludedBudget(summary.getExcludedBudget().add(budget));
+        } else if (item.getPurchaseRequestId() != null) {
+            summary.setLinkedToRequestCount(summary.getLinkedToRequestCount() + 1);
+            summary.setLinkedToRequestBudget(summary.getLinkedToRequestBudget().add(budget));
+        } else if (item.getStatus() == PurchasePlanItemStatus.ACTUAL) {
+            summary.setInPlanCount(summary.getInPlanCount() + 1);
+            summary.setInPlanBudget(summary.getInPlanBudget().add(budget));
+        }
+    }
+
+    /** Парсит сложность позиции плана (строка) в число; некорректные значения игнорируются. */
+    private BigDecimal parseComplexityForSummary(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(complexity.replace(",", ".").replaceAll("\\s", ""));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Возвращает отображаемое имя закупщика для каждой позиции плана (itemId -> «Фамилия Имя» / username).
+     * purchaser — LAZY связь, поэтому id закупщиков загружаются нативным запросом, а пользователи — одним запросом.
+     * Позиции без закупщика в результат не попадают.
+     */
+    private Map<Long, String> resolvePurchaserNamesForSummary(List<Long> itemIds) {
+        Map<Long, String> result = new HashMap<>();
+        if (itemIds.isEmpty()) {
+            return result;
+        }
+        Map<Long, Long> itemPurchaserMap = new HashMap<>();
+        try {
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = entityManager.createNativeQuery(
+                "SELECT id, purchaser_id FROM purchase_plan_items WHERE id IN :ids AND purchaser_id IS NOT NULL"
+            )
+            .setParameter("ids", itemIds)
+            .getResultList();
+            for (Object[] row : rows) {
+                if (row[0] != null && row[1] != null) {
+                    itemPurchaserMap.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error loading item-purchaser mapping: {}", e.getMessage(), e);
+            return result;
+        }
+        if (itemPurchaserMap.isEmpty()) {
+            return result;
+        }
+        Map<Long, User> purchaserMap = new HashMap<>();
+        for (User user : userRepository.findAllById(new HashSet<>(itemPurchaserMap.values()))) {
+            purchaserMap.put(user.getId(), user);
+        }
+        itemPurchaserMap.forEach((itemId, purchaserId) -> {
+            User purchaser = purchaserMap.get(purchaserId);
+            if (purchaser == null) {
+                return;
+            }
+            if (purchaser.getSurname() != null && purchaser.getName() != null) {
+                result.put(itemId, purchaser.getSurname() + " " + purchaser.getName());
+            } else if (purchaser.getUsername() != null) {
+                result.put(itemId, purchaser.getUsername());
+            }
+        });
+        return result;
     }
 
     /**

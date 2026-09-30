@@ -141,6 +141,17 @@ app:
     to-name: ${DELIVERY_WEEKLY_REPORT_TO_NAME:Киреева Ольга}
     # Копия: Осканов Руслан, Рецко Артем
     cc: ${DELIVERY_WEEKLY_REPORT_CC:r.oskanov@uzum.com,a.retsko@uzum.com}
+  # Центр отправки → Закупки → «Ошибка сложности»: адреса в копии каждого письма закупщику
+  # (Осканов Руслан, Рецко Артем). Отправка только ручная (см. ComplexityErrorService)
+  complexity-error:
+    cc: ${COMPLEXITY_ERROR_CC:r.oskanov@uzum.com,a.retsko@uzum.com}
+  # Автоотправка писем «Центр отправки → Спецификации» (оценка спецификаций за прошлый месяц):
+  # первый рабочий день месяца в 10:00 по Ташкенту. Cron — будни 1–10 числа, проверка «первый рабочий
+  # день» (с праздниками из holidays) и защита от повтора — в коде (см. SpecificationSendingScheduler)
+  specification-sending:
+    enabled: ${SPECIFICATION_SENDING_ENABLED:true}
+    cron: ${SPECIFICATION_SENDING_CRON:0 0 10 1-10 * MON-FRI}
+    zone: ${SPECIFICATION_SENDING_ZONE:Asia/Tashkent}
   # Ручной отчёт по договорам (handreport): при старте скачивается из Google Таблицы (доступ по ссылке);
   # недоступна — шаг пропускается. enabled=false — отчёт берётся из папки upload/handreport
   handreport:

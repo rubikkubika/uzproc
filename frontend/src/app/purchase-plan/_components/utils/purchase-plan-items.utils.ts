@@ -1,4 +1,5 @@
 import { DEFAULT_COLUMN_WIDTHS } from '../constants/purchase-plan-items.constants';
+import type { PurchaserSummaryItem } from '../types/purchase-plan-items.types';
 
 // Функция для получения пути к логотипу компании
 export const getCompanyLogoPath = (companyName: string | null): string | null => {
@@ -65,4 +66,39 @@ export const getPurchaseRequestStatusColor = (statusGroup: string | null): strin
 // Функция для получения дефолтной ширины колонки
 export const getDefaultColumnWidth = (columnKey: string): number => {
   return DEFAULT_COLUMN_WIDTHS[columnKey] || 120;
+};
+
+/** Приводит значение из JSON (число / строка BigDecimal / null) к числу */
+const toSummaryNumber = (value: unknown): number => {
+  if (typeof value === 'number') return value;
+  const parsed = parseFloat(String(value ?? ''));
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+/** Нормализует строку ответа эндпоинта /purchaser-summary в PurchaserSummaryItem */
+export const normalizePurchaserSummaryItem = (item: Record<string, unknown>): PurchaserSummaryItem => ({
+  purchaser: typeof item.purchaser === 'string' && item.purchaser ? item.purchaser : 'Не назначен',
+  count: toSummaryNumber(item.count),
+  totalBudget: toSummaryNumber(item.totalBudget),
+  totalComplexity: toSummaryNumber(item.totalComplexity),
+  inPlanCount: toSummaryNumber(item.inPlanCount),
+  inPlanBudget: toSummaryNumber(item.inPlanBudget),
+  linkedToRequestCount: toSummaryNumber(item.linkedToRequestCount),
+  linkedToRequestBudget: toSummaryNumber(item.linkedToRequestBudget),
+  excludedCount: toSummaryNumber(item.excludedCount),
+  excludedBudget: toSummaryNumber(item.excludedBudget),
+});
+
+/** Сумма бюджета в своде: без дробной части, с разделителями разрядов */
+export const formatSummaryBudget = (value: number): string =>
+  value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+/** Сложность в своде: до 2 знаков после запятой, «-» для нуля */
+export const formatSummaryComplexity = (value: number): string =>
+  value > 0 ? value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '-';
+
+/** Значение разбивки свода по статусу (количество / сумма): «-» для нуля */
+export const formatSummaryBreakdownValue = (value: number, isBudget: boolean): string => {
+  if (!value) return '-';
+  return isBudget ? formatSummaryBudget(value) : String(value);
 };

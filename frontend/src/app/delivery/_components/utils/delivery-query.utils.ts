@@ -26,6 +26,11 @@ export function buildDeliveryQueryParams(query: DeliveryQuery): URLSearchParams 
 
   if (query.plannedDate) params.append('plannedDeliveryDate', query.plannedDate);
   if (query.horizon) params.append('horizon', query.horizon);
+  if (query.reportSlice) {
+    params.append('reportSlice', query.reportSlice.kind);
+    params.append('reportFrom', query.reportSlice.from);
+    params.append('reportTo', query.reportSlice.to);
+  }
 
   return params;
 }

@@ -49,6 +49,10 @@ public final class DeliverySpecifications {
     /** Горизонт «Ближайшие дни»: плановая дата в (сегодня; сегодня + N] */
     public static final int HORIZON_WEEK_DAYS = 7;
 
+    /** Срезы недельного отчёта по поставкам (ссылки «Открыть список» из письма) */
+    public static final String REPORT_SLICE_OVERDUE = "overdue";
+    public static final String REPORT_SLICE_NO_ESF = "no-esf";
+
     /** Значения «Статуса отчёта» (свободный текст из Excel) — в нижнем регистре, без пробелов по краям. */
     private static final String REPORT_CLOSED = "закрыто";
     private static final String REPORT_AWAITING_DELIVERY = "ожидаем поставку";
@@ -223,7 +227,37 @@ public final class DeliverySpecifications {
                 predicates.add(cb.lessThanOrEqualTo(root.get("plannedDeliveryDate"), plannedTo));
             }
 
+            if (hasText(p.getReportSlice())) {
+                Predicate slicePredicate = reportSlice(root, cb, p.getReportSlice().trim(),
+                        parseDate(p.getReportFrom(), "reportFrom"), parseDate(p.getReportTo(), "reportTo"));
+                if (slicePredicate != null) predicates.add(slicePredicate);
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /**
+     * Срез недельного отчёта по поставкам — те же условия, что в письме
+     * (DeliveryWeeklyReportService), чтобы список совпадал с цифрами отчёта.
+     */
+    private static Predicate reportSlice(Root<Delivery> root, CriteriaBuilder cb, String slice,
+                                         LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            logger.warn("Delivery list: срез отчёта '{}' без периода — фильтр пропущен", slice);
+            return null;
+        }
+        return switch (slice) {
+            case REPORT_SLICE_OVERDUE -> cb.and(
+                    cb.between(root.get("plannedDeliveryDate"), from, to),
+                    cb.isNull(root.get("actualDeliveryDate")));
+            case REPORT_SLICE_NO_ESF -> cb.and(
+                    cb.between(root.get("actualDeliveryDate"), from, to),
+                    cb.isNull(root.get("esfDate")));
+            default -> {
+                logger.warn("Delivery list: неизвестный срез отчёта '{}' — фильтр пропущен", slice);
+                yield null;
+            }
         };
     }
 

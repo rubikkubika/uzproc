@@ -24,6 +24,10 @@ import com.uzproc.backend.dto.contract.ContractSlaResponseDto;
 import com.uzproc.backend.service.contract.ContractApprovalService;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.contract.ContractSlaDashboardService;
+import com.uzproc.backend.dto.delivery.dashboard.DeliveryDisciplineResponseDto;
+import com.uzproc.backend.dto.delivery.dashboard.DeliveryFinanceResponseDto;
+import com.uzproc.backend.dto.delivery.dashboard.DeliveryPulseResponseDto;
+import com.uzproc.backend.service.delivery.DeliveryDashboardService;
 import com.uzproc.backend.service.overview.ApprovalPresentationService;
 import com.uzproc.backend.service.overview.KpiSettingsService;
 import com.uzproc.backend.service.overview.OverviewService;
@@ -62,19 +66,22 @@ public class OverviewController {
     private final ContractService contractService;
     private final ContractSlaDashboardService contractSlaDashboardService;
     private final KpiSettingsService kpiSettingsService;
+    private final DeliveryDashboardService deliveryDashboardService;
 
     public OverviewController(OverviewService overviewService,
                               ApprovalPresentationService approvalPresentationService,
                               ContractApprovalService contractApprovalService,
                               ContractService contractService,
                               ContractSlaDashboardService contractSlaDashboardService,
-                              KpiSettingsService kpiSettingsService) {
+                              KpiSettingsService kpiSettingsService,
+                              DeliveryDashboardService deliveryDashboardService) {
         this.overviewService = overviewService;
         this.approvalPresentationService = approvalPresentationService;
         this.contractApprovalService = contractApprovalService;
         this.contractService = contractService;
         this.contractSlaDashboardService = contractSlaDashboardService;
         this.kpiSettingsService = kpiSettingsService;
+        this.deliveryDashboardService = deliveryDashboardService;
     }
 
     /**
@@ -268,6 +275,39 @@ public class OverviewController {
         logger.debug("Contract SLA dashboard request for year {}, preparedBy={}, exclude1p={}, month={}, organizations={}",
                 year, preparedBy, exclude1p, month, organizations);
         return ResponseEntity.ok(contractSlaDashboardService.getContractSlaData(year, preparedBy, exclude1p, month, organizations));
+    }
+
+    /**
+     * Дэшборд «Пульс поставок»: KPI за год (поставлено, просрочено, без ЭСФ, ближайшие 7 дней, закрыто)
+     * и помесячный график поставленных, просроченных и % в срок.
+     *
+     * @param year год; null — текущий
+     */
+    @GetMapping("/delivery-dashboard/pulse")
+    public ResponseEntity<DeliveryPulseResponseDto> getDeliveryPulse(@RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(deliveryDashboardService.getPulse(year));
+    }
+
+    /**
+     * Дэшборд «Дисциплина сроков»: гистограмма задержек, средняя задержка по месяцам,
+     * топ-10 поставщиков по просрочкам.
+     *
+     * @param year год; null — текущий
+     */
+    @GetMapping("/delivery-dashboard/discipline")
+    public ResponseEntity<DeliveryDisciplineResponseDto> getDeliveryDiscipline(@RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(deliveryDashboardService.getDiscipline(year));
+    }
+
+    /**
+     * Дэшборд «Деньги и документы»: разбивка по статусу и схеме оплаты, поставленные без ЭСФ по месяцам,
+     * нераспределённые оплаты.
+     *
+     * @param year год; null — текущий
+     */
+    @GetMapping("/delivery-dashboard/finance")
+    public ResponseEntity<DeliveryFinanceResponseDto> getDeliveryFinance(@RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(deliveryDashboardService.getFinance(year));
     }
 
     /**

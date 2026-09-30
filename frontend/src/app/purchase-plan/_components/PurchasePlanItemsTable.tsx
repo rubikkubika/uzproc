@@ -18,7 +18,6 @@ import PurchasePlanItemsTableRow from './ui/PurchasePlanItemsTableRow';
 import PurchasePlanItemsTableFilters from './ui/PurchasePlanItemsTableFilters';
 import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumnsMenu';
 import PurchasePlanItemsTableColumnsHeader from './ui/PurchasePlanItemsTableColumnsHeader';
-import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
 import PurchasePlanDraftToolbar from './ui/PurchasePlanDraftToolbar';
 import PurchasePlanDraftSlaModal from './ui/PurchasePlanDraftSlaModal';
 import { DraftSlaRow } from './types/purchase-plan-items.types';
@@ -312,19 +311,8 @@ function PurchasePlanItemsTableContent() {
   // Сводная статистика по закупщикам (использует purchaserSummaryData из нового эндпоинта /purchaser-summary)
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
   // ВАЖНО: purchaserSummaryData содержит уже агрегированные данные из эндпоинта, не нужно группировать
-  const purchaserSummary = useMemo(() => {
-    if (!table.purchaserSummaryData || table.purchaserSummaryData.length === 0) {
-      return [];
-    }
-
-    // Данные уже в правильном формате из эндпоинта /purchaser-summary
-    return table.purchaserSummaryData.map((item) => ({
-      purchaser: item.purchaser || 'Не назначен',
-      count: item.count || 0,
-      totalBudget: typeof item.totalBudget === 'number' ? item.totalBudget : (parseFloat(String(item.totalBudget)) || 0),
-      totalComplexity: typeof item.totalComplexity === 'number' ? item.totalComplexity : (parseFloat(String(item.totalComplexity)) || 0),
-    }));
-  }, [table.purchaserSummaryData]);
+  // Данные уже нормализованы в хуке (normalizePurchaserSummaryItem), включая разбивку по статусам
+  const purchaserSummary = table.purchaserSummaryData;
 
   // Свод по ЦФО (использует cfoSummaryData из эндпоинта /cfo-summary)
   const cfoSummary = useMemo(() => {
@@ -697,6 +685,7 @@ function PurchasePlanItemsTableContent() {
         purchaserSummary={purchaserSummary}
         purchaserFilter={table.filters.purchaserFilter}
         setPurchaserFilter={table.filters.setPurchaserFilter}
+        showPurchaserStatusBreakdown={!isDraft}
         {...(isDraft ? {
           cfoSummary,
           cfoFilter: table.filters.cfoFilter,

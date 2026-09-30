@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * Недельный отчёт по поставкам (центр отправки → «Поставки» → «Недельный отчёт»).
  * Период отчёта — с прошлой пятницы по последний четверг включительно; вторым блоком
- * идут те же данные за текущий месяц.
+ * идут те же данные за текущий месяц, третьим — сводка с начала года (без таблиц, со ссылками на списки).
  */
 @Service
 public class DeliveryWeeklyReportService {
@@ -39,6 +39,7 @@ public class DeliveryWeeklyReportService {
 
     private static final String WEEK_SECTION_TITLE = "За неделю";
     private static final String MONTH_SECTION_TITLE = "За текущий месяц";
+    private static final String YEAR_SECTION_TITLE = "С начала года";
 
     private final DeliveryRepository deliveryRepository;
     private final UserRepository userRepository;
@@ -77,10 +78,12 @@ public class DeliveryWeeklyReportService {
         LocalDate today = LocalDate.now();
         DeliveryWeeklyReportSection week = buildWeekSection(today);
         DeliveryWeeklyReportSection month = buildMonthSection(today);
+        DeliveryWeeklyReportSection year = buildYearSection(today);
 
         return new DeliveryWeeklyReportPreviewDto(
                 toPeriodDto(week),
                 toPeriodDto(month),
+                toPeriodDto(year),
                 defaultRecipientFullName(),
                 defaultRecipientEmail(),
                 emailBuilder.buildSubject(week.from(), week.to())
@@ -109,14 +112,15 @@ public class DeliveryWeeklyReportService {
         return send(scheduledRecipient.trim(), scheduledRecipientName.trim(), parseCc(scheduledCc));
     }
 
-    /** Собирает отчёт за неделю и текущий месяц и отправляет письмо получателю и адресам в копии. */
+    /** Собирает отчёт за неделю, текущий месяц и с начала года и отправляет письмо получателю и адресам в копии. */
     private DeliveryWeeklyReportSendResultDto send(String to, String fullName, String[] cc) {
         LocalDate today = LocalDate.now();
         DeliveryWeeklyReportSection week = buildWeekSection(today);
         DeliveryWeeklyReportSection month = buildMonthSection(today);
+        DeliveryWeeklyReportSection year = buildYearSection(today);
 
         String subject = emailBuilder.buildSubject(week.from(), week.to());
-        String content = emailBuilder.buildContent(week, month, deliveryLinkBaseUrl);
+        String content = emailBuilder.buildContent(week, month, year, deliveryLinkBaseUrl);
         emailService.sendEmailWithCc(to, cc, subject, emailService.wrapWithStandardTemplate(content));
 
         logger.info("Delivery weekly report sent to {} ({}), cc {}: period {}..{}, "
@@ -151,6 +155,11 @@ public class DeliveryWeeklyReportService {
     /** Блок за текущий месяц: с первого числа по сегодня. */
     private DeliveryWeeklyReportSection buildMonthSection(LocalDate asOf) {
         return buildSection(MONTH_SECTION_TITLE, asOf.withDayOfMonth(1), asOf);
+    }
+
+    /** Блок с начала года: с 1 января по сегодня. */
+    private DeliveryWeeklyReportSection buildYearSection(LocalDate asOf) {
+        return buildSection(YEAR_SECTION_TITLE, asOf.withDayOfYear(1), asOf);
     }
 
     /** Данные блока: поставленное, просроченное без факта и поставленное без даты ЭСФ. */

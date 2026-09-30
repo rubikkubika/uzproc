@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { PurchasePlanItem, PageResponse, SortField, SortDirection } from '../types/purchase-plan-items.types';
+import { PurchasePlanItem, PageResponse, SortField, SortDirection, PurchaserSummaryItem } from '../types/purchase-plan-items.types';
+import { normalizePurchaserSummaryItem } from '../utils/purchase-plan-items.utils';
 import { PAGE_SIZE } from '../constants/purchase-plan-items.constants';
 import { formatBudget, formatBudgetFull } from '../utils/currency.utils';
 import { usePurchasePlanItemsFilters } from './usePurchasePlanItemsFilters';
@@ -78,12 +79,7 @@ export const usePurchasePlanItemsTable = () => {
   const [monthCounts, setMonthCounts] = useState<number[]>(() => Array(14).fill(0));
   const [summaryData, setSummaryData] = useState<PurchasePlanItem[]>([]); // Для обратной совместимости с usePurchasePlanItemsEditing
   // Отдельное состояние для сводной статистики из нового эндпоинта
-  const [purchaserSummaryData, setPurchaserSummaryData] = useState<Array<{
-    purchaser: string;
-    count: number;
-    totalBudget: number;
-    totalComplexity: number;
-  }>>([]);
+  const [purchaserSummaryData, setPurchaserSummaryData] = useState<PurchaserSummaryItem[]>([]);
   // Свод по ЦФО (эндпоинт /cfo-summary)
   const [cfoSummaryData, setCfoSummaryData] = useState<Array<{
     cfo: string;
@@ -1390,18 +1386,9 @@ export const usePurchasePlanItemsTable = () => {
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items/purchaser-summary?${params.toString()}`;
         const response = await fetch(fetchUrl);
         if (response.ok) {
-          const summaryList = await response.json();
-          // Преобразуем список сводной статистики в массив PurchasePlanItem для совместимости
-          // (так как purchaserSummary ожидает массив с полями purchaser, count, totalBudget, totalComplexity)
-          const transformedData = summaryList.map((item: any) => ({
-            purchaser: item.purchaser || 'Не назначен',
-            count: item.count || 0,
-            totalBudget: item.totalBudget || 0,
-            totalComplexity: item.totalComplexity || 0,
-          }));
-          
-          // Сохраняем агрегированные данные в отдельное состояние
-          setPurchaserSummaryData(transformedData);
+          const summaryList: Record<string, unknown>[] = await response.json();
+          // Итоги по закупщику + разбивка по статусам «В плане» / «Связано с заявкой» / «Исключено»
+          setPurchaserSummaryData(summaryList.map(normalizePurchaserSummaryItem));
         } else {
           setPurchaserSummaryData([]);
         }
