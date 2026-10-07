@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import SendingCenterTabs from './ui/SendingCenterTabs';
 import PurchasesSending from './ui/PurchasesSending';
+import ManagementReportSending from './ui/ManagementReportSending';
 import SpecificationsSending from './ui/SpecificationsSending';
 import DeliveriesSending from './ui/DeliveriesSending';
 import { SendingCenterTabId } from './types/sending-center.types';
@@ -15,6 +16,7 @@ export default function SendingCenter() {
       <h1 className="text-2xl font-bold text-gray-900">Центр отправки</h1>
       <SendingCenterTabs activeTab={activeTab} onTabChange={setActiveTab} />
       {activeTab === 'purchases' && <PurchasesSending />}
+      {activeTab === 'management-report' && <ManagementReportSending />}
       {activeTab === 'specifications' && <SpecificationsSending />}
       {activeTab === 'deliveries' && <DeliveriesSending />}
     </div>

@@ -25,7 +25,7 @@ export default function ComplexityErrorRequestList({ requests, expanded, onToggl
             className={`hover:underline ${request.alreadySent ? 'text-blue-600' : 'text-blue-700 font-medium'}`}
             title={request.alreadySent ? 'Уже была в отправленном письме' : 'Ещё не отправлялась'}
           >
-            {request.innerId || `#${request.id}`}
+            {request.requestNumber ?? request.innerId ?? `#${request.id}`}
           </Link>
           {expanded && (
             <span className="text-gray-500">

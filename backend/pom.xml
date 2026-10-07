@@ -80,6 +80,12 @@
             <artifactId>poi</artifactId>
             <version>5.2.5</version>
         </dependency>
+        <!-- PDF: серверная сборка презентации управленческой отчётности -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.5</version>
+        </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>

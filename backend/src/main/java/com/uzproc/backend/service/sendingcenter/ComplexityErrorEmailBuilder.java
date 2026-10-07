@@ -104,8 +104,11 @@ public class ComplexityErrorEmailBuilder {
     private static final String PLACEHOLDER_HTML =
             "<span style=\"background-color: #fff176; padding: 0 3px;\">[укажите сложность]</span>";
 
-    /** Номер заявки для текста запроса: inner_id, иначе — ID в системе. */
+    /** Номер заявки для письма: короткий номер (id_purchase_request), а если его нет — inner_id или ID в системе. */
     private String requestNumber(ComplexityErrorRequestDto request) {
+        if (request.requestNumber() != null) {
+            return String.valueOf(request.requestNumber());
+        }
         return nvl(request.innerId(), String.valueOf(request.id()));
     }
 
@@ -114,7 +117,7 @@ public class ComplexityErrorEmailBuilder {
         StringBuilder rows = new StringBuilder();
         for (ComplexityErrorRequestDto request : requests) {
             rows.append("<tr>")
-                .append(tdLink(nvl(request.innerId(), "Открыть"), request.link()))
+                .append(tdLink(requestNumber(request), request.link()))
                 .append(td(nvl(request.name(), "")))
                 .append(td(nvl(request.cfo(), "")))
                 .append(td(nvl(request.status(), "")))

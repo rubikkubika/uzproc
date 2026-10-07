@@ -69,11 +69,7 @@ public class EmailController {
                     .toArray(String[]::new);
             }
 
-            String contentHtml = request.body != null && !request.body.trim().isEmpty()
-                ? "<p style=\"color: #666666; font-size: 14px; line-height: 1.6; white-space: pre-wrap;\">"
-                    + request.body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
-                    + "</p>"
-                : "<p style=\"color: #666666; font-size: 14px; line-height: 1.6;\">Нет текста.</p>";
+            String contentHtml = emailService.plainTextToHtml(request.body);
             String htmlBody = emailService.wrapWithStandardTemplate(contentHtml);
 
             String subject = request.subject.trim();

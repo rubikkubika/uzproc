@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import type { PurchaseRequest } from '../types/purchase-request.types';
+import { loadCsiInvitationText } from '../utils/csiInvitationText';
 
 interface FeedbackDetails {
   recipient: string | null;
@@ -104,23 +105,7 @@ export function useCsiActions({
       }
 
       const data = await response.json();
-      const fullUrl = request.csiLink;
-      const recipientName = data.recipientName || '';
-      const generatedText = `Здравствуйте!
-
-Недавно мы завершили работу по вашей заявке № ${request.idPurchaseRequest || ''} на ${request.name || ''}.
-
-Чтобы отдел закупок работал быстрее и удобнее для вас, нам очень важно узнать ваше мнение.
-
-Пожалуйста, уделите минутку и оцените качество нашего сервиса по ссылке:
-${fullUrl}
-
-Ссылка персональная и доступна для заполнения один раз.
-
-Спасибо, что помогаете нам становиться лучше.
-
-С уважением,
-Ваша команда закупок`;
+      const generatedText = await loadCsiInvitationText(request);
 
       setSentInvitationDetails({
         recipient: data.recipient || 'Не указан',

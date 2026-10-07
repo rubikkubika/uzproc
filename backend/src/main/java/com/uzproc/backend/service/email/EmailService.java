@@ -4,6 +4,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -41,6 +42,30 @@ public class EmailService {
      * @param text    тело письма (HTML)
      */
     public void sendEmailWithCc(String to, String[] cc, String subject, String text) {
+        send(to, cc, subject, text, null, null, null);
+    }
+
+    /**
+     * Отправка письма с одним вложением (например, PDF-презентация).
+     *
+     * @param to              адрес получателя (обязателен)
+     * @param cc              адреса в копии (может быть null или пустой)
+     * @param subject         тема письма
+     * @param text            тело письма (HTML)
+     * @param attachmentName  имя файла вложения
+     * @param attachment      содержимое вложения
+     * @param contentType     MIME-тип вложения (например, application/pdf)
+     */
+    public void sendEmailWithAttachment(String to, String[] cc, String subject, String text,
+                                        String attachmentName, byte[] attachment, String contentType) {
+        if (attachment == null || attachment.length == 0) {
+            throw new IllegalArgumentException("Пустое вложение письма");
+        }
+        send(to, cc, subject, text, attachmentName, attachment, contentType);
+    }
+
+    private void send(String to, String[] cc, String subject, String text,
+                      String attachmentName, byte[] attachment, String contentType) {
         try {
             logger.debug("Attempting to send email to: {}, cc: {}, from: {}", to, cc != null ? String.join(", ", cc) : "none", fromEmail);
             MimeMessage message = mailSender.createMimeMessage();
@@ -55,9 +80,13 @@ public class EmailService {
             helper.setText(text, true); // true для HTML
             // Вложение логотипа по CID (PNG) — Gmail и др. не показывают SVG в письмах, PNG везде отображается
             helper.addInline(LOGO_CID, new ClassPathResource("email/logo.png"));
+            if (attachment != null) {
+                helper.addAttachment(attachmentName, new ByteArrayResource(attachment), contentType);
+            }
 
             mailSender.send(message);
-            logger.info("Email sent successfully to: {}", to);
+            logger.info("Email sent successfully to: {}{}", to,
+                    attachment != null ? " (attachment " + attachmentName + ", " + attachment.length + " bytes)" : "");
         } catch (jakarta.mail.MessagingException e) {
             logger.error("Error sending email to: {}", to, e);
             String errorMessage = "Mail server connection failed. Failed messages: " + e.getMessage();
@@ -103,6 +132,19 @@ public class EmailService {
      */
     public String wrapWithStandardTemplate(String contentHtml) {
         return EMAIL_HEADER_HTML + (contentHtml != null ? contentHtml : "") + EMAIL_FOOTER_HTML;
+    }
+
+    /**
+     * Превращает простой текст письма (с переносами строк) в HTML-абзац стандартного вида:
+     * спецсимволы экранируются, переносы сохраняются.
+     */
+    public String plainTextToHtml(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return "<p style=\"color: #666666; font-size: 14px; line-height: 1.6;\">Нет текста.</p>";
+        }
+        return "<p style=\"color: #666666; font-size: 14px; line-height: 1.6; white-space: pre-wrap;\">"
+                + text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+                + "</p>";
     }
 
     public void sendTestEmail(String to) {

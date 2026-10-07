@@ -1,5 +1,5 @@
 /** Подразделы вкладки «Закупки» центра отправки. */
-export type PurchaseSendingSubTabId = 'complexity-errors';
+export type PurchaseSendingSubTabId = 'complexity-errors' | 'csi-invitation';
 
 export interface PurchaseSendingSubTab {
   id: PurchaseSendingSubTabId;

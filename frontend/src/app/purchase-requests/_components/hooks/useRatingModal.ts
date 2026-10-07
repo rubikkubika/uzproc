@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { loadCsiInvitationText } from '../utils/csiInvitationText';
 import type { PurchaseRequest } from '../types/purchase-request.types';
 import { searchUsersByNameLike, findInitiatorByName, type UserSuggestion } from '../services/users.api';
 
@@ -68,6 +69,9 @@ export function useRatingModal(
     return () => clearTimeout(timer);
   }, [userSearchQuery, isRatingModalOpen]);
 
+  /** Заявка, для которой сейчас запрошен текст письма */
+  const emailTextRequestIdRef = useRef<number | null>(null);
+
   // Генерация текста письма
   const generateEmailText = async (userEmail: string, request: PurchaseRequest | null, selectedUser: {
     id: number;
@@ -81,27 +85,11 @@ export function useRatingModal(
       return;
     }
 
-    // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
-    const fullUrl = request.csiLink;
-
-    // Получаем имя получателя из selectedUser
-    const recipientName = selectedUser && selectedUser.name ? selectedUser.name : '';
-
-    const text = `Здравствуйте!
-
-Недавно мы завершили работу по вашей заявке № ${request.idPurchaseRequest || ''} на ${request.name || ''}.
-
-Чтобы отдел закупок работал быстрее и удобнее для вас, нам очень важно узнать ваше мнение.
-
-Пожалуйста, уделите минутку и оцените качество нашего сервиса по ссылке:
-${fullUrl}
-
-Ссылка персональная и доступна для заполнения один раз.
-
-Спасибо, что помогаете нам становиться лучше.
-
-С уважением,
-Ваша команда закупок`;
+    // Текст формирует бэкенд: в нём подписанные договоры по закупке и даты их регистрации
+    emailTextRequestIdRef.current = request.id;
+    const text = await loadCsiInvitationText(request);
+    // Пока текст грузился, могли открыть письмо по другой заявке — устаревший ответ не подставляем
+    if (emailTextRequestIdRef.current !== request.id) return;
 
     setEmailText(text);
   };

@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import SendingSubTabs from './SendingSubTabs';
 import ComplexityErrorsSending from './ComplexityErrorsSending';
+import CsiInvitationSending from './CsiInvitationSending';
 import { PURCHASE_SENDING_SUB_TABS } from '../constants/purchase-sending.constants';
 import { PurchaseSendingSubTabId } from '../types/purchase-sending.types';
 
-/** Раздел «Закупки» центра отправки: подраздел «Ошибка сложности». */
+/** Раздел «Закупки» центра отправки: подразделы «Ошибка сложности» и «Оценка закупки». */
 export default function PurchasesSending() {
   const [activeSubTab, setActiveSubTab] = useState<PurchaseSendingSubTabId>('complexity-errors');
 
@@ -18,6 +19,7 @@ export default function PurchasesSending() {
         onSubTabChange={setActiveSubTab}
       />
       {activeSubTab === 'complexity-errors' && <ComplexityErrorsSending />}
+      {activeSubTab === 'csi-invitation' && <CsiInvitationSending />}
     </div>
   );
 }

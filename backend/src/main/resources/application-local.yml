@@ -34,3 +34,7 @@ app:
   # Для проверки локально: SPECIFICATION_SENDING_ENABLED=true
   specification-sending:
     enabled: ${SPECIFICATION_SENDING_ENABLED:false}
+  # Локально автоотправка управленческой отчётности (6-й рабочий день месяца, 10:00) выключена.
+  # Для проверки локально: MANAGEMENT_REPORT_SENDING_ENABLED=true
+  management-report-sending:
+    enabled: ${MANAGEMENT_REPORT_SENDING_ENABLED:false}

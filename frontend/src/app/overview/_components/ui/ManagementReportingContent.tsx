@@ -198,14 +198,7 @@ export function ManagementReportingContent({
 
         {/* Выгрузка презентации управленческой отчётности (PDF 16:9) */}
         <div className="ml-auto pb-1">
-          <MrPresentationExportButton
-            sla={{
-              year: slaYear,
-              averagePercentage: averageSlaPercentage,
-              completedByMonth: slaCompletedByMonth,
-              percentageByMonth: slaPercentageByMonth,
-            }}
-          />
+          <MrPresentationExportButton />
         </div>
       </div>
 

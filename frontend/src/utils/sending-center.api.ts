@@ -219,6 +219,8 @@ export interface ComplexityErrorRequest {
   /** ID заявки в системе — маршрут /purchase-request/{id} */
   id: number;
   innerId: string | null;
+  /** Короткий номер заявки (id_purchase_request) */
+  requestNumber: number | null;
   name: string | null;
   cfo: string | null;
   status: string | null;
@@ -305,6 +307,126 @@ export interface ComplexityErrorTestSendResult {
 /** Тестовое письмо: список случайного закупщика, отправка только на тестовый адрес (без копии и без отметки). */
 export async function sendComplexityErrorsTest(): Promise<ComplexityErrorTestSendResult> {
   const url = `${getBackendUrl()}/api/sending-center/purchases/complexity-errors/send-test`;
+  const response = await fetch(url, { method: 'POST' });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || data.message || 'Не удалось отправить тестовое письмо');
+  }
+  return response.json();
+}
+
+/** Сведения о рассылке презентации управленческой отчётности (Центр отправки → «Управленческая отчётность»). */
+export interface ManagementReportSendingInfo {
+  periodYear: number;
+  periodMonth: number;
+  /** Подпись периода: «сентябрь 2026» */
+  periodLabel: string;
+  subject: string;
+  /** Адресат регулярной рассылки */
+  recipient: string;
+  recipientFullName: string;
+  cc: string[];
+  /** Адрес тестовой отправки */
+  testRecipient: string;
+  /** Включена ли рассылка по расписанию на этом окружении */
+  scheduleEnabled: boolean;
+  workingDayNumber: number;
+  sendTime: string;
+  zone: string;
+  nextSendDate: string | null;
+  /** Когда отчёт за период ушёл по расписанию; null — ещё не уходил */
+  autoSentAt: string | null;
+  autoSendSummary: string | null;
+}
+
+/** Результат отправки презентации управленческой отчётности. */
+export interface ManagementReportSendResult {
+  sent: boolean;
+  recipient: string;
+  cc: string[];
+  subject: string;
+  periodYear: number;
+  periodMonth: number;
+  fileName: string;
+  slideCount: number;
+  fileSizeBytes: number;
+}
+
+/** Период, получатели и расписание рассылки управленческой отчётности. */
+export async function fetchManagementReportSending(signal?: AbortSignal): Promise<ManagementReportSendingInfo> {
+  const url = `${getBackendUrl()}/api/sending-center/management-report`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить сведения о рассылке управленческой отчётности');
+  }
+  return response.json();
+}
+
+/** Тестовое письмо: презентация за прошлый месяц уходит только на тестовый адрес, без копии. */
+export async function sendManagementReportTest(): Promise<ManagementReportSendResult> {
+  const url = `${getBackendUrl()}/api/sending-center/management-report/send-test`;
+  const response = await fetch(url, { method: 'POST' });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || data.message || 'Не удалось отправить тестовое письмо');
+  }
+  return response.json();
+}
+
+/** Предпросмотр письма «Оценка закупки» (Центр отправки → Закупки → «Оценка закупки»). */
+export interface CsiInvitationPreview {
+  /** Номер заявки, взятой для примера; null — подходящей заявки нет */
+  sampleRequestNumber: number | null;
+  subject: string | null;
+  text: string | null;
+  contractCount: number;
+  /** Адреса, которые по умолчанию ставятся в копию (помимо закупщика) */
+  defaultCc: string[];
+  testRecipient: string;
+}
+
+/** Текст письма «Оценка закупки» по заявке. */
+export interface CsiInvitationText {
+  purchaseRequestId: number;
+  subject: string;
+  text: string;
+  contractCount: number;
+}
+
+/** Итог тестовой отправки письма «Оценка закупки». */
+export interface CsiInvitationTestSendResult {
+  recipient: string;
+  requestNumber: number;
+  contractCount: number;
+  subject: string;
+}
+
+/** Пример письма «Оценка закупки», копия по умолчанию и тестовый адрес. */
+export async function fetchCsiInvitation(signal?: AbortSignal): Promise<CsiInvitationPreview> {
+  const url = `${getBackendUrl()}/api/sending-center/purchases/csi-invitation`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить письмо «Оценка закупки»');
+  }
+  return response.json();
+}
+
+/** Текст письма «Оценка закупки» по заявке: со списком подписанных договоров и датами регистрации. */
+export async function fetchCsiInvitationText(
+  purchaseRequestId: number,
+  signal?: AbortSignal
+): Promise<CsiInvitationText> {
+  const url = `${getBackendUrl()}/api/sending-center/purchases/csi-invitation/text?purchaseRequestId=${purchaseRequestId}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Не удалось сформировать текст письма');
+  }
+  return response.json();
+}
+
+/** Тестовое письмо «Оценка закупки»: только на тестовый адрес, без копии и без создания приглашения. */
+export async function sendCsiInvitationTest(): Promise<CsiInvitationTestSendResult> {
+  const url = `${getBackendUrl()}/api/sending-center/purchases/csi-invitation/send-test`;
   const response = await fetch(url, { method: 'POST' });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

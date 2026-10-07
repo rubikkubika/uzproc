@@ -96,6 +96,28 @@ public class WorkingDayService {
     }
 
     /**
+     * N-й рабочий день месяца (пн–пт, не праздник из таблицы {@code holidays}), нумерация с 1.
+     * Если в месяце меньше {@code n} рабочих дней или {@code n < 1}, возвращает {@code null}.
+     */
+    public LocalDate nthWorkingDayOfMonth(YearMonth month, int n) {
+        if (n < 1) {
+            return null;
+        }
+        int count = 0;
+        for (LocalDate d = month.atDay(1); !d.isAfter(month.atEndOfMonth()); d = d.plusDays(1)) {
+            if (isWorkingDay(d) && ++count == n) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    /** Является ли дата N-м рабочим днём своего месяца. */
+    public boolean isNthWorkingDayOfMonth(LocalDate date, int n) {
+        return date != null && date.equals(nthWorkingDayOfMonth(YearMonth.from(date), n));
+    }
+
+    /**
      * Рабочие дни в диапазоне [start, end] включительно (пн–пт, без праздников).
      */
     public long countWorkingDaysInclusive(LocalDate start, LocalDate end) {

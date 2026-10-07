@@ -95,7 +95,10 @@ public class ComplexityErrorService {
         this.emailService = emailService;
     }
 
-    /** Заявки текущего года без сложности, сгруппированные по закупщику, с отметками об отправке. */
+    /**
+     * Заявки без сложности, созданные в текущем году, у пользователей с ролью «закупщик»:
+     * сгруппированы по закупщику, с отметками об отправке.
+     */
     @Transactional(readOnly = true)
     public ComplexityErrorPreviewDto getPreview() {
         int year = LocalDate.now().getYear();
@@ -228,6 +231,12 @@ public class ComplexityErrorService {
         List<ComplexityErrorPurchaserDto> result = new ArrayList<>();
         for (Map.Entry<String, List<PurchaseRequest>> entry : byKey.entrySet()) {
             String key = entry.getKey();
+            // Уведомляем только закупщиков: заявки без закупщика и заявки, где в поле «закупщик»
+            // стоит пользователь без роли «закупщик» (или его нет в справочнике), в список не попадают
+            User purchaserUser = key.isEmpty() ? null : findUser(key, usersByName);
+            if (purchaserUser == null || !Boolean.TRUE.equals(purchaserUser.getIsPurchaser())) {
+                continue;
+            }
             List<ComplexityErrorNotification> sent = sentByKey.getOrDefault(key, List.of());
             Set<Long> sentIds = sentRequestIds(sent);
             List<ComplexityErrorRequestDto> items = entry.getValue().stream()
@@ -242,7 +251,7 @@ public class ComplexityErrorService {
             result.add(new ComplexityErrorPurchaserDto(
                     key,
                     displayName,
-                    key.isEmpty() ? null : findEmail(key, usersByName),
+                    notBlank(purchaserUser.getEmail()) ? purchaserUser.getEmail().trim() : null,
                     items.size(),
                     notSent,
                     items,
@@ -276,6 +285,7 @@ public class ComplexityErrorService {
         return new ComplexityErrorRequestDto(
                 request.getId(),
                 request.getInnerId(),
+                request.getIdPurchaseRequest(),
                 requestTitle(request),
                 request.getCfo() != null ? request.getCfo().getName() : null,
                 request.getStatus() != null ? request.getStatus().getDisplayName() : null,
@@ -358,27 +368,27 @@ public class ComplexityErrorService {
     }
 
     /**
-     * Справочник пользователей с адресом по ФИО в обоих порядках («фамилия имя» и «имя фамилия»).
+     * Справочник пользователей по ФИО в обоих порядках («фамилия имя» и «имя фамилия»).
      * Сопоставление строгое — без частичных совпадений, чтобы письмо не ушло не тому человеку.
      */
     private Map<String, User> usersByName() {
         Map<String, User> map = new HashMap<>();
         for (User user : userRepository.findAll()) {
-            if (!notBlank(user.getEmail()) || !notBlank(user.getSurname()) || !notBlank(user.getName())) continue;
+            if (!notBlank(user.getSurname()) || !notBlank(user.getName())) continue;
             map.putIfAbsent(normalize(user.getSurname() + " " + user.getName()), user);
             map.putIfAbsent(normalize(user.getName() + " " + user.getSurname()), user);
         }
         return map;
     }
 
-    /** Адрес закупщика: по полному ФИО, затем по первым двум словам (без отчества). */
-    private String findEmail(String key, Map<String, User> usersByName) {
+    /** Пользователь-закупщик заявки: по полному ФИО, затем по первым двум словам (без отчества). */
+    private User findUser(String key, Map<String, User> usersByName) {
         User user = usersByName.get(key);
         if (user == null) {
             String[] parts = key.split(" ");
             if (parts.length > 2) user = usersByName.get(parts[0] + " " + parts[1]);
         }
-        return user != null ? user.getEmail().trim() : null;
+        return user;
     }
 
     /** Адреса копии из настройки: список через запятую; пустые значения отбрасываются. */

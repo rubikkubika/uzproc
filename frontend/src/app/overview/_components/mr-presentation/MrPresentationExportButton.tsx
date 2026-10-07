@@ -3,21 +3,15 @@
 import { useMemo, useState } from 'react';
 import { FileDown, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMrPresentationExport } from './hooks/useMrPresentationExport';
+import { useMrPresentationDownload } from './hooks/useMrPresentationDownload';
 import { MONTH_FULL } from './constants/mr-presentation.constants';
 import { previousPeriod } from './utils/mrPresentationFormat';
-import type { MrSlaInput } from './types/mr-presentation.types';
-
-interface MrPresentationExportButtonProps {
-  /** Показатели SLA текущей страницы управленческой отчётности. */
-  sla: MrSlaInput;
-}
 
 /**
  * Кнопка выгрузки управленческой отчётности в презентацию PDF (16:9) с выбором периода.
- * Доступна только пользователю с логином admin.
+ * Презентацию собирает бэкенд. Доступна только пользователю с логином admin.
  */
-export function MrPresentationExportButton({ sla }: MrPresentationExportButtonProps) {
+export function MrPresentationExportButton() {
   const { userEmail } = useAuth();
   const isAdminLogin = userEmail === 'admin';
   const now = useMemo(() => new Date(), []);
@@ -26,22 +20,13 @@ export function MrPresentationExportButton({ sla }: MrPresentationExportButtonPr
   const [month, setMonth] = useState<number>(defaultPeriod.month);
   const [year, setYear] = useState<number>(defaultPeriod.year);
 
-  const { busy, phase, error, progress, start } = useMrPresentationExport({ sla });
+  const { busy, error, start } = useMrPresentationDownload();
 
   const years = useMemo(() => {
     const list: number[] = [];
     for (let y = now.getFullYear() - 3; y <= now.getFullYear() + 1; y++) list.push(y);
     return list;
   }, [now]);
-
-  const statusText =
-    phase === 'loading'
-      ? 'Загрузка данных…'
-      : phase === 'building'
-        ? progress
-          ? `Слайд ${progress.done} из ${progress.total}`
-          : 'Сборка слайдов…'
-        : null;
 
   const selectClass =
     'px-1.5 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60';
@@ -87,7 +72,6 @@ export function MrPresentationExportButton({ sla }: MrPresentationExportButtonPr
         Презентация PDF
       </button>
 
-      {statusText && <span className="text-xs text-gray-500 whitespace-nowrap">{statusText}</span>}
       {error && <span className="text-xs text-red-600 whitespace-nowrap">{error}</span>}
     </div>
   );

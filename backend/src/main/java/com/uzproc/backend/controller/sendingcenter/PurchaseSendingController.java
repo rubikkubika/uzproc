@@ -3,7 +3,11 @@ package com.uzproc.backend.controller.sendingcenter;
 import com.uzproc.backend.dto.sendingcenter.ComplexityErrorPreviewDto;
 import com.uzproc.backend.dto.sendingcenter.ComplexityErrorSendResultDto;
 import com.uzproc.backend.dto.sendingcenter.ComplexityErrorTestSendResultDto;
+import com.uzproc.backend.dto.sendingcenter.CsiInvitationPreviewDto;
+import com.uzproc.backend.dto.sendingcenter.CsiInvitationTestSendResultDto;
+import com.uzproc.backend.dto.sendingcenter.CsiInvitationTextDto;
 import com.uzproc.backend.service.sendingcenter.ComplexityErrorService;
+import com.uzproc.backend.service.sendingcenter.CsiInvitationSendingService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,9 +19,12 @@ import java.util.Map;
 public class PurchaseSendingController {
 
     private final ComplexityErrorService complexityErrorService;
+    private final CsiInvitationSendingService csiInvitationSendingService;
 
-    public PurchaseSendingController(ComplexityErrorService complexityErrorService) {
+    public PurchaseSendingController(ComplexityErrorService complexityErrorService,
+                                     CsiInvitationSendingService csiInvitationSendingService) {
         this.complexityErrorService = complexityErrorService;
+        this.csiInvitationSendingService = csiInvitationSendingService;
     }
 
     /** «Ошибка сложности»: закупки текущего года без сложности по закупщикам и отметки об отправке. */
@@ -42,6 +49,24 @@ public class PurchaseSendingController {
     @PostMapping("/complexity-errors/send-test")
     public ResponseEntity<ComplexityErrorTestSendResultDto> sendComplexityErrorsTest() {
         return ResponseEntity.ok(complexityErrorService.sendTest());
+    }
+
+    /** «Оценка закупки»: пример письма (по последней заявке с подписанными договорами), копия и тестовый адрес. */
+    @GetMapping("/csi-invitation")
+    public ResponseEntity<CsiInvitationPreviewDto> getCsiInvitation() {
+        return ResponseEntity.ok(csiInvitationSendingService.getPreview());
+    }
+
+    /** Текст письма «Оценка закупки» по заявке — подставляется в окно отправки в таблице заявок. */
+    @GetMapping("/csi-invitation/text")
+    public ResponseEntity<CsiInvitationTextDto> getCsiInvitationText(@RequestParam Long purchaseRequestId) {
+        return ResponseEntity.ok(csiInvitationSendingService.getText(purchaseRequestId));
+    }
+
+    /** Тестовое письмо «Оценка закупки»: только на тестовый адрес, без копии и без создания приглашения. */
+    @PostMapping("/csi-invitation/send-test")
+    public ResponseEntity<CsiInvitationTestSendResultDto> sendCsiInvitationTest() {
+        return ResponseEntity.ok(csiInvitationSendingService.sendTest());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

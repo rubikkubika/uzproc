@@ -147,6 +147,12 @@ app:
     cc: ${COMPLEXITY_ERROR_CC:r.oskanov@uzum.com,a.retsko@uzum.com}
     # Адрес тестовой отправки (кнопка «Отправить тестовое письмо»): только сюда, без копии
     test-recipient: ${COMPLEXITY_ERROR_TEST_RECIPIENT:a.retsko@uzum.com}
+  # Центр отправки → Закупки → «Оценка закупки»: письмо инициатору с просьбой оценить работу закупок (CSI).
+  # Отправляет закупщик из таблицы заявок; здесь — адреса копии по умолчанию (Осканов Руслан, Рецко Артем)
+  csi-invitation:
+    cc: ${CSI_INVITATION_CC:r.oskanov@uzum.com,a.retsko@uzum.com}
+    # Адрес тестовой отправки (кнопка в центре отправки): только сюда, без копии
+    test-recipient: ${CSI_INVITATION_TEST_RECIPIENT:a.retsko@uzum.com}
   # Автоотправка писем «Центр отправки → Спецификации» (оценка спецификаций за прошлый месяц):
   # первый рабочий день месяца в 10:00 по Ташкенту. Cron — будни 1–10 числа, проверка «первый рабочий
   # день» (с праздниками из holidays) и защита от повтора — в коде (см. SpecificationSendingScheduler)
@@ -154,6 +160,27 @@ app:
     enabled: ${SPECIFICATION_SENDING_ENABLED:true}
     cron: ${SPECIFICATION_SENDING_CRON:0 0 10 1-10 * MON-FRI}
     zone: ${SPECIFICATION_SENDING_ZONE:Asia/Tashkent}
+  # Центр отправки → «Управленческая отчётность»: презентация управленческой отчётности (PDF) за прошлый
+  # месяц уходит в 6-й рабочий день месяца в 10:00 по Ташкенту. Cron — будни 1–20 числа, проверка
+  # «6-й рабочий день» (с праздниками из holidays) и защита от повтора — в коде
+  # (см. ManagementReportSendingScheduler). PDF собирает бэкенд (service/mrpresentation)
+  management-report-sending:
+    enabled: ${MANAGEMENT_REPORT_SENDING_ENABLED:true}
+    cron: ${MANAGEMENT_REPORT_SENDING_CRON:0 0 10 1-20 * MON-FRI}
+    zone: ${MANAGEMENT_REPORT_SENDING_ZONE:Asia/Tashkent}
+    # Номер рабочего дня месяца, в который уходит отчёт
+    working-day: ${MANAGEMENT_REPORT_SENDING_WORKING_DAY:6}
+    # Адресат письма: Осканов Руслан
+    to: ${MANAGEMENT_REPORT_SENDING_TO:r.oskanov@uzum.com}
+    to-name: ${MANAGEMENT_REPORT_SENDING_TO_NAME:Осканов Руслан}
+    # Копия: Рецко Артем
+    cc: ${MANAGEMENT_REPORT_SENDING_CC:a.retsko@uzum.com}
+    # Адрес тестовой отправки (кнопка в центре отправки): только сюда, без копии.
+    # Сюда же уходит сообщение, если автоотправка не удалась
+    test-recipient: ${MANAGEMENT_REPORT_SENDING_TEST_RECIPIENT:a.retsko@uzum.com}
+    # Попытки отправить отчёт по расписанию и пауза между ними
+    attempts: ${MANAGEMENT_REPORT_SENDING_ATTEMPTS:3}
+    retry-delay-seconds: ${MANAGEMENT_REPORT_SENDING_RETRY_DELAY_SECONDS:120}
   # Ручной отчёт по договорам (handreport): при старте скачивается из Google Таблицы (доступ по ссылке);
   # недоступна — шаг пропускается. enabled=false — отчёт берётся из папки upload/handreport
   handreport:

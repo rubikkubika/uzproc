@@ -128,5 +128,12 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
 
     @Query("SELECT DISTINCT c FROM Contract c LEFT JOIN FETCH c.suppliers WHERE c.purchaseRequestId IN :ids")
     List<Contract> findWithSuppliersByPurchaseRequestIdIn(@Param("ids") List<Long> ids);
-}
 
+    /**
+     * Номера заявок (id_purchase_request) с подписанными договорами, начиная с последних зарегистрированных.
+     * Для примера письма «Оценка закупки» в центре отправки.
+     */
+    @Query("SELECT c.purchaseRequestId FROM Contract c WHERE c.status = com.uzproc.backend.entity.contract.ContractStatus.SIGNED "
+            + "AND c.purchaseRequestId IS NOT NULL AND c.registrationDate IS NOT NULL ORDER BY c.registrationDate DESC")
+    List<Long> findPurchaseRequestIdsWithSignedContractsLatestFirst(org.springframework.data.domain.Pageable pageable);
+}
